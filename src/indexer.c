@@ -427,38 +427,38 @@ int main(int argc, char **argv) {
     root_dir = argv[1];
 
     /* Check that root_dir exists and is directory */
-    if (!is_valid_directory (root_dir)) {
+    if (!is_valid_directory(root_dir)) {
         return 1;
     }
 
-    files = find_files (root_dir);
-    idx = index_create ();
+    files = find_files(root_dir);
+    idx = index_create();
     if (idx == NULL) {
         ERROR_PRINT("Failed to create index\n");
     }
 
-    iter = list_createiter (files);
+    iter = list_createiter(files);
 
-    while (list_hasnext (iter)) {
-        relpath = (char *) list_next (iter);
-        fullpath = concatenate_strings (2, root_dir, relpath);
+    while (list_hasnext(iter)) {
+        relpath = (char *)list_next(iter);
+        fullpath = concatenate_strings(2, root_dir, relpath);
         DEBUG_PRINT("Indexing %s\n", fullpath);
 
-        words = list_create ((cmpfunc_t) strcmp);
-        tokenize_file (fullpath, words);
-        index_addpath (idx, relpath, words);
+        words = list_create((cmpfunc_t)strcmp);
+        tokenize_file(fullpath, words);
+        index_addpath(idx, relpath, words);
 
         free (fullpath);
-        list_destroy (words);
+        list_destroy(words);
     }
 
-    list_destroyiter (iter);
-    list_destroy (files);
+    list_destroyiter(iter);
+    list_destroy(files);
 
-    DEBUG_PRINT("Serving queries on port %s:%d\n", "127.0.0.1", (int) PORT_NUM);
+    DEBUG_PRINT("Serving queries on port %s:%d\n", "127.0.0.1", (int)PORT_NUM);
 
-    status = http_server ((int) PORT_NUM, http_handler);
-    index_destroy (idx);
+    status = http_server((int)PORT_NUM, http_handler);
+    index_destroy(idx);
 
     return status;
 }

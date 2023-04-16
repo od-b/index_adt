@@ -79,11 +79,11 @@ static void freebuckets(int numbuckets, mapentry_t **buckets, void (*destroy_key
             e = e->next;
 
             if (destroy_key && tmp->key) {
-                destroy_key (tmp->key);
+                destroy_key(tmp->key);
             }
 
             if (destroy_val && tmp->value) {
-                destroy_val (tmp->value);
+                destroy_val(tmp->value);
             }
 
             free(tmp);

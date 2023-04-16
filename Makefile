@@ -10,7 +10,7 @@ SET_SRC=aatreeset.c
 # SET_SRC=rbtreeset.c
 
 # TODO: Add your index implementation here
-INDEX_SRC=
+INDEX_SRC=index.c
 
 # Directories
 INCLUDE_DIR=include

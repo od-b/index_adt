@@ -47,6 +47,7 @@ struct list *find_files(const char *root);
  */
 int compare_strings(void *a, void *b);
 
+
 /*
  * Hashes a string.
  */
@@ -62,24 +63,21 @@ int compare_pointers(void *a, void *b);
  * Concatenates a given number of strings, and return it as
  * a new string (it will be allocated using malloc).
  */
-char *
-concatenate_strings (int num_strings, const char *first, ...);
+char *concatenate_strings (int num_strings, const char *first, ...);
 
 /*
  * Checks if the given 'dirpath' is a valid directory.
  * 1 = valid
  * 0 = invalid
  */
-int
-is_valid_directory (const char *dirpath);
+int is_valid_directory (const char *dirpath);
 
 /*
  * Checks if the given 'filepath' is a valid regular file.
  * 1 = valid
  * 0 = invalid
  */
-int
-is_valid_file (const char *filepath);
+int is_valid_file (const char *filepath);
 
 /*
  * Get the current time in microseconds

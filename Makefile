@@ -21,7 +21,7 @@ INDEXER=indexer
 ASSERT_INDEX=assert_index
 
 # Target source files
-INDEXER_SRC=indexer.c common.c httpd.c $(LIST_SRC) $(MAP_SRC) $(SET_SRC) $(INDEX_SRC)
+INDEXER_SRC=indexer.c common.c httpd.c $(LIST_SRC) $(MAP_SRC) $(SET_SRC) $(INDEX_SRC) $rbtree.c
 ASSERT_SRC=assert_index.c common.c $(LIST_SRC) $(MAP_SRC) $(SET_SRC) $(INDEX_SRC)
 
 # Prefix the files with the src folder

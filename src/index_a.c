@@ -152,6 +152,7 @@ static void initialize_indexed_word(i_word_t *indexed_word) {
     if (indexed_word->word == NULL || indexed_word->files_with_word == NULL) {
         ERROR_PRINT("out of memory");
     }
+
 }
 
 void index_addpath(index_t *index, char *path, list_t *words) {

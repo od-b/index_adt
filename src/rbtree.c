@@ -261,7 +261,7 @@ void *tree_add(tree_t *tree, void *elem) {
         direction = tree->cmpfunc(elem, curr->elem);
         if (direction > 0) {
             if (curr->right == NIL) {
-                treenode_t *new_node = malloc(sizeof(treenode_t));
+                new_node = malloc(sizeof(treenode_t));
                 if (new_node == NULL) {
                     ERROR_PRINT("out of memory");
                     return NULL;
@@ -274,7 +274,7 @@ void *tree_add(tree_t *tree, void *elem) {
         } else if (direction < 0) {
             if (curr->left == NIL) {
                 // same as above, but curr->left
-                treenode_t *new_node = malloc(sizeof(treenode_t));
+                new_node = malloc(sizeof(treenode_t));
                 if (new_node == NULL) {
                     ERROR_PRINT("out of memory");
                     return NULL;

@@ -85,25 +85,36 @@
  * Use this to print debug information.
  */
 #ifdef DEBUG
+#ifdef LINE_PRINT
+#define DEBUG_PRINT(...) do { fprintf(stderr, "%s", BYEL); fprintf(stderr, "[DEBUG][%s:%d]: ", __FILE__, __LINE__); fprintf(stderr, "%s", reset); fprintf(stderr, __VA_ARGS__); } while(0)
+#else
 #define DEBUG_PRINT(...) do { fprintf(stderr, "%s", BYEL); fprintf(stderr, "[DEBUG][%s]: ", __FILE__); fprintf(stderr, "%s", reset); fprintf(stderr, __VA_ARGS__); } while(0)
+#endif  /* LINE_PRINT */
 #else
 #define DEBUG_PRINT(...) do { } while(0)
-#endif
+#endif  /* DEBUG */
 
-
-// Comment out this line to prevent ERROR_PRINT from exiting the program
-#define ERROR_FATAL
 
 /*
  * Prints an error message and terminates the program.
  * Use this to report fatal errors that prevent your program from proceeding.
  */
 #ifdef ERROR_FATAL
+
+#ifdef LINE_PRINT
+#define ERROR_PRINT(...) do { fprintf(stderr, "%s", BRED); fprintf(stderr, "[ERROR][%s:%d]: ", __FILE__, __LINE__); fprintf(stderr, "%s", reset); fprintf(stderr, __VA_ARGS__); exit(1); } while(0)
+#else   
 #define ERROR_PRINT(...) do { fprintf(stderr, "%s", BRED); fprintf(stderr, "[ERROR][%s]: ", __FILE__); fprintf(stderr, "%s", reset); fprintf(stderr, __VA_ARGS__); exit(1); } while(0)
+#endif  /* LINE_PRINT */
+
+#else   /* no ERROR_FATAL defined */
+
+#ifdef LINE_PRINT
+#define ERROR_PRINT(...) do { fprintf(stderr, "%s", BRED); fprintf(stderr, "[ERROR][%s:%d]: ", __FILE__, __LINE__); fprintf(stderr, "%s", reset); fprintf(stderr, __VA_ARGS__); } while(0)
 #else
 #define ERROR_PRINT(...) do { fprintf(stderr, "%s", BRED); fprintf(stderr, "[ERROR][%s]: ", __FILE__); fprintf(stderr, "%s", reset); fprintf(stderr, __VA_ARGS__); } while(0)
-#endif
+#endif  /* LINE_PRINT */
 
-
+#endif  /* ERROR_FATAL */
 
 #endif // __PRINTING_H__

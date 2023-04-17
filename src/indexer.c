@@ -66,15 +66,15 @@ mime_table[] = {
 
 /* Check for terminating word */
 static int is_reserved_word(char *word) {
-    if(strcmp(word, "ANDNOT") == 0)
+    if (strcmp(word, "ANDNOT") == 0)
         return 1;
-    else if(strcmp(word, "AND") == 0)
+    else if (strcmp(word, "AND") == 0)
         return 1;
-    else if(strcmp(word, "OR") == 0)
+    else if (strcmp(word, "OR") == 0)
         return 1;
-    else if(strcmp(word, "(") == 0)
+    else if (strcmp(word, "(") == 0)
         return 1;
-    else if(strcmp(word, ")") == 0)
+    else if (strcmp(word, ")") == 0)
         return 1;
     else
         return 0;

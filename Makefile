@@ -29,17 +29,17 @@ ASSERT_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(ASSERT_SRC))
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
 # Override this to remove all printing
-DEBUG_FLAG = -DDEBUG -Wall
+DEBUG_FLAGS = -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
 
 .PHONY=all
 
 all: indexer assert_index
 
 indexer: $(INDEXER_SRC) $(HEADERS) Makefile
-	gcc -Wall -o $@ -D_GNU_SOURCE -D_REENTRANT $(INDEXER_SRC) -I$(INCLUDE_DIR) -g -lm -lpthread $(DEBUG_FLAG)
+	gcc -Wall -o $@ -D_GNU_SOURCE -D_REENTRANT $(INDEXER_SRC) -I$(INCLUDE_DIR) -lm -lpthread $(DEBUG_FLAGS)
 
 assert_index: $(ASSERT_SRC) $(HEADERS) Makefile
-	gcc -o $@ $(ASSERT_SRC) -I$(INCLUDE_DIR) -g -lm $(DEBUG_FLAG)
+	gcc -o $@ $(ASSERT_SRC) -I$(INCLUDE_DIR) -lm $(DEBUG_FLAGS)
 
 clean:
 	rm -f *~ *.o *.exe *.out *.prof *.stackdump indexer assert_index

@@ -186,13 +186,13 @@ void index_addpath(index_t *index, char *path, list_t *words) {
         tmp_i_word->files_with_word = NULL;
 
         /* add to the main tree of indexed words. Store return to determine whether word is duplicate. */
-        i_word_t *curr_i_word = (i_word_t*)tree_add(index->indexed_words, tmp_i_word);
+        i_word_t *curr_i_word = (i_word_t*)(tree_add(index->indexed_words, tmp_i_word));
         if (curr_i_word == NULL) {
             ERROR_PRINT("out of memory");
         }
 
         /* check whether word is a duplicate by comparing adress to the temp word */
-        if (&curr_i_word != &tmp_i_word) {
+        if (&curr_i_word->word != &tmp_i_word->word) {
             /* word is duplicate. free the struct. */
             free(tmp_i_word);
         } else {

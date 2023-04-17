@@ -22,6 +22,9 @@ This list does not including makefile changes, or additions to common.c/h.
   * Updated several inaccurate descriptions. E.g.; list_create.h, 
   * Renamed linkedlist.c to doublylinkedlist.c for clarity
 
+### Misc:
+  * update ERROR_PRINT && DEBUG_PRINT to include line. Can be turned off by not defining LINE_PRINT.
+
 ### Logical or variable type changes
 
   * Changed 'set_add()' to provide a return value

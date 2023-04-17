@@ -19,7 +19,7 @@
 #define NUM_DOCS ( 50 )
 
 
-typedef struct document{
+typedef struct document {
     set_t *terms;
     char path[20];
 } document_t;
@@ -36,7 +36,7 @@ char *generate_string(unsigned int *seed) {
     len = (rand_r(seed) % WORD_LENGTH) + 1;
 
     /* Generate a random string of characters */
-    s = calloc(sizeof(char), len + 1 );
+    s = calloc(sizeof(char), len + 1);
     for (i = 0 ; i < len; i++) {
         s[i] = 'a' + (rand_r(seed) % ('z' - 'a'));
     }
@@ -47,7 +47,7 @@ char *generate_string(unsigned int *seed) {
 /* Generates a list of words which acts a a document */
 void initialize_document(document_t *doc, unsigned int seed) {
     int i;
-    list_t *words;
+    // list_t *words; // note: unused
     char *word;
 
     sprintf(doc->path, "document_%d.txt", seed);
@@ -80,7 +80,7 @@ void doc_destroy(document_t *doc) {
 /* Runs a series of queries and validates the index */
 void validate_index(index_t *ind) {
     int i, hitCount;
-    set_t *w;
+    // set_t *w; // note: unused
     list_t *query;
     set_iter_t *iter;
     list_t *result;
@@ -92,6 +92,7 @@ void validate_index(index_t *ind) {
     /* Validate that all words returns the document */
     for (i = 0; i < NUM_DOCS; i++) {
         iter = set_createiter(docs[i].terms);
+
 
         while (set_hasnext(iter)) {
             /* Add to query */

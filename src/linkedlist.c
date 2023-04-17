@@ -3,18 +3,24 @@
 
 #include <stdlib.h>
 
+
+/* Note: doubly linked list with tail pointer */
+
+
 struct listnode;
 
-typedef struct listnode {
+typedef struct listnode listnode_t;
+
+struct listnode {
     listnode_t *next;
     listnode_t *prev;
     void *elem;
-} listnode_t;
+};
 
 struct list {
     listnode_t *head;
     listnode_t *tail;
-    unsigned int size;   /* modification: int to unsigned int; list cannot have negative size */
+    int size;
     cmpfunc_t cmpfunc;
 };
 
@@ -59,7 +65,7 @@ void list_destroy(list_t *list) {
     free(list);
 }
 
-unsigned int list_size(list_t *list) {
+int list_size(list_t *list) {
     return list->size;
 }
 
@@ -205,6 +211,8 @@ static listnode_t *splitlist(listnode_t *head) {
 	/* Move two pointers, a 'slow' one and a 'fast' one which moves
 	 * twice as fast.  When the fast one reaches the end of the list,
 	 * the slow one will be at the middle.
+     * 
+     * Note: this is a cool approach.
 	 */
 	slow = head;
 	fast = head->next;

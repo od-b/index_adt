@@ -12,11 +12,19 @@ typedef struct list list_t;
 
 /*
  * Creates a new, empty list that uses the given comparison function
- * to compare elements.  The comparison function accepts two elements,
+ * to compare elements. [The comparison function accepts two elements,
  * and returns -1 if the first is smaller than the second, 1 if the
- * first is greater than the second, and 0 if the elements are equal.
- *
+ * first is greater than the second, and 0 if the elements are equal.]1
  * Returns the new list.
+ *
+ * NOTE 1: Inaccurate description. Reasoning and correction:
+ * The cmpfuncs used within this precode o not return "==-1" or "==1", 
+ * but rather an arbitrary int x where (x<0 || x==0 || x>0).
+ * Subsequently, greater than or less than is also the checks performed by the 
+ * list src provided in this precode.
+ * 
+ * This follows the standard used by libraries such as string.h, 
+ * and this description should be updated to accurately reflect cmpfunc_t.
  */
 list_t *list_create(cmpfunc_t cmpfunc);
 
@@ -28,9 +36,8 @@ void list_destroy(list_t *list);
 
 /*
  * Returns the current size of the given list.
-    modification: int to unsigned int; list cannot have negative size
  */
-unsigned int list_size(list_t *list);
+int list_size(list_t *list);
 
 /*
  * Adds the given element to the start of the given list.
@@ -89,9 +96,13 @@ void list_destroyiter(list_iter_t *iter);
 int list_hasnext(list_iter_t *iter);
 
 /*
- * Returns the next element in the sequence represented by the given
- * list iterator.
- * Note: No, it doesnt. It returns the current element, then increments the iterator.
+ * Returns the [next element]1 in the sequence represented by the given list iterator. []2
+ * 
+ * NOTE 1: Inaccurate description. Correction:
+ * Returns the current element of the given iterator.
+ * 
+ * NOTE 2: Missing information:
+ * Increments the iterator, returns NULL when end of list is reached.
  */
 void *list_next(list_iter_t *iter);
 

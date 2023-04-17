@@ -7,10 +7,7 @@
 LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
 SET_SRC=aatreeset.c
-# SET_SRC=rbtreeset.c
-
-# TODO: Add your index implementation here
-INDEX_SRC=index.c
+INDEX_SRC=index_a.c rbtree.c
 
 # Directories
 INCLUDE_DIR=include
@@ -21,7 +18,7 @@ INDEXER=indexer
 ASSERT_INDEX=assert_index
 
 # Target source files
-INDEXER_SRC=indexer.c common.c httpd.c $(LIST_SRC) $(MAP_SRC) $(SET_SRC) $(INDEX_SRC) $rbtree.c
+INDEXER_SRC=indexer.c common.c httpd.c $(LIST_SRC) $(MAP_SRC) $(SET_SRC) $(INDEX_SRC)
 ASSERT_SRC=assert_index.c common.c $(LIST_SRC) $(MAP_SRC) $(SET_SRC) $(INDEX_SRC)
 
 # Prefix the files with the src folder
@@ -32,7 +29,7 @@ ASSERT_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(ASSERT_SRC))
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
 # Override this to remove all printing
-DEBUG_FLAG = -DDEBUG
+DEBUG_FLAG = -DDEBUG -Wall
 
 .PHONY=all
 

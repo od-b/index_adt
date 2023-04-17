@@ -1,7 +1,7 @@
 #include "tree.h"
 
 /*
- * set using a given tree ADT
+ * set using any given tree defined in tree.h
 */
 
 struct set;

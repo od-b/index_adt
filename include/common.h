@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdint.h>
 
 struct list;
 
@@ -16,6 +17,22 @@ typedef int (*cmpfunc_t)(void *, void *);
  * The type of hash functions.
  */
 typedef unsigned long (*hashfunc_t)(void *);
+
+
+/* --- ADDED COMMON FUNCTIONS --- */
+
+
+
+/* 
+ * Copies the src string. returns a pointer to the copy.
+ * Uses strncpy, so should be safe to use.
+ */
+char *copy_string(const char *src);
+
+
+
+/* --- PRECODE BEGINS --- */
+
 
 /*
  * Prints an error message and terminates the program.

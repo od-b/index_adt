@@ -395,7 +395,6 @@ static int http_open_file_streams(int fd, FILE **inf, FILE **outf) {
 }
 
 static void *handle_request(void *arg) {
-    int s;
     FILE *inf, *outf;
     char *path;
     struct http_header hdr;

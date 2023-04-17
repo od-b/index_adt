@@ -22,6 +22,24 @@
 #include <ctype.h>
 
 
+char *copy_string(const char *src) {
+    size_t buf_size = strlen(src) + 1;     /* needed malloc size */
+
+    char *buf = malloc(buf_size);
+    if (buf == NULL) {
+        ERROR_PRINT("out of memory");
+        return NULL;
+    }
+
+    /* copy the string to the allocated memory */
+    strncpy(buf, src, buf_size);
+
+    return buf;
+}
+
+
+/* --- PRECODE --- */
+
 void tokenize_file(const char *filename, list_t *list) {
     FILE *fp;
     char *c, *word;

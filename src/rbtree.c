@@ -1,9 +1,9 @@
 #include "printing.h"
 #include "tree.h"
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
+// #include <stdlib.h>
+// #include <stdio.h>
+// #include <stdint.h>
 
 
 typedef struct treenode {
@@ -118,7 +118,7 @@ static void rotate_right(tree_t *tree, treenode_t *a) {
     b->right = a;
 }
 
-void *tree_contains(tree_t *tree, void *elem) {
+int8_t tree_contains(tree_t *tree, void *elem) {
     treenode_t *curr = tree->root;
     int8_t direction;
 
@@ -131,59 +131,61 @@ void *tree_contains(tree_t *tree, void *elem) {
             curr = curr->left;
         } else {
             // ... direction == 0, tree contains an equal element
-            return curr->elem;
+            return 1;
         }
     }
 
     // tree does not contain an equal element
-    return NULL;
+    return 0;
 }
 
-/* 
- * Iterative node adding
- * This approach is a bit ugly/spacious, but does not allocate any
- * memory until we're certain elem is to be added
- * returns:
- * a) the added node, if it was succesfully added
- * b) NULL if malloc failed
- * c) tree->NIL if element already exists (not adding duplicate)
- */
-static treenode_t *node_add(tree_t *tree, void *elem) {
-    treenode_t *NIL = tree->NIL;
-    treenode_t *curr = tree->root;
-    int8_t direction;
+// /* 
+//  * Iterative node adding
+//  * This approach is a bit ugly/spacious, but does not allocate any
+//  * memory until we're certain elem is to be added
+//  * returns:
+//  * a) NULL, if node was succesfully added
+//  * c) the node with an equal element, if elem was a duplicate add attempt
+//  */
+// static treenode_t *node_add(tree_t *tree, void *elem) {
+//     treenode_t *NIL = tree->NIL;
+//     treenode_t *curr = tree->root;
+//     int8_t direction;
 
-    /* traverse until a NIL-node, or node with equal element is found */
-    while ((direction = tree->cmpfunc(elem, curr->elem)) != 0) {
-        if (direction > 0) {
-            if (curr->right == NIL) {
-                treenode_t *new_node = malloc(sizeof(treenode_t));
-                if (new_node != NULL) {
-                    new_node->parent = curr;
-                    curr->right = new_node;
-                }
-                return new_node;
-            }
-            // else ... move right in tree
-            curr = curr->right;
-        } else {
-            // ... direction < 0
-            if (curr->left == NIL) {
-                // same as above, but curr->left
-                treenode_t *new_node = malloc(sizeof(treenode_t));
-                if (new_node != NULL) {
-                    new_node->parent = curr;
-                    curr->left = new_node;
-                }
-                return new_node;
-            }
-            // else ... move left in tree
-            curr = curr->left;
-        }
-    }
-    // cmpfunc == 0, don't add the elem
-    return tree->NIL;
-}
+//     /* traverse until a NIL-node, or node with equal element is found */
+//     while (1) {
+//         direction = tree->cmpfunc(elem, curr->elem);
+//         if (direction > 0) {
+//             if (curr->right == NIL) {
+//                 treenode_t *new_node = malloc(sizeof(treenode_t));
+//                 if (new_node == NULL) {
+//                     ERROR_PRINT("out of memory");
+//                 }
+//                 new_node->parent = curr;
+//                 curr->right = new_node;
+//                 return new_node;
+//             }
+//             // else ... move right in tree
+//             curr = curr->right;
+//         } else if (direction < 0) {
+//             if (curr->left == NIL) {
+//                 // same as above, but curr->left
+//                 treenode_t *new_node = malloc(sizeof(treenode_t));
+//                 if (new_node == NULL) {
+//                     ERROR_PRINT("out of memory");
+//                 }
+//                 new_node->parent = curr;
+//                 curr->left = new_node;
+//                 return new_node;
+//             }
+//             // else ... move left in tree
+//             curr = curr->left;
+//         } else {
+//             /* duplicate elem */
+//             return curr;
+//         }
+//     }
+// }
 
 /* balance the tree after adding a node */
 static void post_add_balance(tree_t *T, treenode_t *added_node) {
@@ -229,13 +231,13 @@ static void post_add_balance(tree_t *T, treenode_t *added_node) {
     }
 }
 
-int8_t tree_add(tree_t *tree, void *elem) {
+void *tree_add(tree_t *tree, void *elem) {
     /* case: tree does not have a root yet */
     if (tree->size == 0) {
         treenode_t *root = malloc(sizeof(treenode_t));
         if (root == NULL) {
-            printf("out of memory\n");
-            return;
+            ERROR_PRINT("out of memory\n");
+            return NULL;
         }
         root->elem = elem;
         root->left = tree->NIL;
@@ -244,36 +246,66 @@ int8_t tree_add(tree_t *tree, void *elem) {
         root->black = 1;
         tree->root = root;
         tree->size = 1;
-        return 1;
+        return elem;
     }
 
     /* add elem to the tree */
-    treenode_t *new_node = node_add(tree, elem);
-    if (new_node == tree->NIL) {
-        /* avoid adding duplicate */
-        return 0;
-    }
-    if (new_node == NULL) {
-        /* only occurs if malloc failed */
-        ERROR_PRINT("out of memory\n");
-        return -1;
+    treenode_t *NIL = tree->NIL;
+    treenode_t *curr = tree->root;
+    int8_t direction;
+    treenode_t *new_node = NULL;
+
+    /* iteratively add the node. Can be a lot faster than recursion, depending on CPU. */
+    /* traverse until a NIL-node, or node with equal element is found */
+    while (1) {
+        direction = tree->cmpfunc(elem, curr->elem);
+        if (direction > 0) {
+            if (curr->right == NIL) {
+                treenode_t *new_node = malloc(sizeof(treenode_t));
+                if (new_node == NULL) {
+                    ERROR_PRINT("out of memory");
+                    return NULL;
+                }
+                curr->right = new_node;
+                break;
+            }
+            // else ... move right in tree
+            curr = curr->right;
+        } else if (direction < 0) {
+            if (curr->left == NIL) {
+                // same as above, but curr->left
+                treenode_t *new_node = malloc(sizeof(treenode_t));
+                if (new_node == NULL) {
+                    ERROR_PRINT("out of memory");
+                    return NULL;
+                }
+                curr->left = new_node;
+                break;
+            }
+            // else ... move left in tree
+            curr = curr->left;
+        } else {
+            /* duplicate elem found. return a pointer to the duplicate elem. */
+            return curr->elem;
+        }
     }
 
     /* ... else, the elem was added, increment tree size */
     tree->size++;
 
     /* assign the default values for new nodes */
+    new_node->parent = curr;
     new_node->elem = elem;
     new_node->left = tree->NIL;
     new_node->right = tree->NIL;
     new_node->black = 0;
 
-    /* if needed, call for balancing */
+    /* if new node parent is red, call for balancing */
     if (!new_node->parent->black) {
         post_add_balance(tree, new_node);
     }
 
-    return 1;
+    return elem;
 }
 
 

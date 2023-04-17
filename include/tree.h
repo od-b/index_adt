@@ -20,12 +20,15 @@ int tree_size(tree_t *tree);
 /* Uses cmpfunc to check elements for equality.
  * * Returns NULL if tree does not contain an equal element.
  * * otherwise, returns a pointer to the element */
-void* tree_contains(tree_t *tree, void *elem);
+int8_t tree_contains(tree_t *tree, void *elem);
 
-/* Adds the given element to the tree
- * returns -1 on error, 1 on success, 0 on duplicate 
+/* Adds the given element to the tree.
+ * Returns:
+ * 1) a void pointer to the elem in the tree. 
+ *    This can be either the elem which was given, or the existing node elem, if duplicate.
+ * 2) NULL on failure; i.e., out of memory
  */
-int8_t tree_add(tree_t *tree, void *elem);
+void *tree_add(tree_t *tree, void *elem);
 
 /* NOT YET IMPLEMENTED */
 // tree_t *tree_copy(tree_t *tree);

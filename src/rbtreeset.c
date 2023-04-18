@@ -59,7 +59,7 @@ static void node_destroy(treenode_t *node, treenode_t *sentinel) {
     free(node);
 }
 
-void tree_destroy(set_t *tree) {
+void set_destroy(set_t *tree) {
     // call the recursive part first
     node_destroy(tree->root, tree->NIL);
     // free sentinel (NIL-node), then tree itself
@@ -137,7 +137,7 @@ int set_contains(set_t *set, void *elem) {
     return 0;
 }
 
-void *tree_get(set_t *tree, void *elem) {
+void *set_get(set_t *tree, void *elem) {
     treenode_t *curr = tree->root;
     int_fast8_t direction;
 
@@ -297,17 +297,18 @@ typedef struct set_iter {
  * Works by creating 'links' between a subtrees 'far right leaf' and (sub)root,
  * through temporary alteration of the tree leafs.
  */
-void *next_node_inorder(set_iter_t *iter) {
-    treenode_t *NIL = iter->set->NIL;
-    treenode_t *curr = iter->node;
-    if (curr == NIL) return NULL;
+static treenode_t *next_node_inorder(set_iter_t *iter) {
+    treenode_t *curr, *ret, *NIL;
+    NIL = iter->set->NIL;
 
-    treenode_t *ret_node = NIL;          // node to be returned
+    if (iter->node == NIL) return NIL;
+    curr = iter->node;
+    ret = NIL;          // node to be returned
 
-    while (ret_node == NIL) {
+    while (ret == NIL) {
         if (curr->left == NIL) {
             // can't move further left in current subtree, move right
-            ret_node = curr;
+            ret = curr;
             curr = curr->right;
         } else {
             // ... else, curr has a left child
@@ -325,20 +326,17 @@ void *next_node_inorder(set_iter_t *iter) {
                 pre->right = curr;
                 curr = curr->left;
             } else {
-                // ... (pre->right == curr)
+                /* ... (pre->right == curr) */
                 // Delete the link and move curr pointer right
                 pre->right = NIL;
-                ret_node = curr;
+                ret = curr;
                 curr = curr->right;
             }
         }
     }
-
-    /* set iter->node the node where the iterator currently is */
+    /* increment iter to the next node */
     iter->node = curr;
-
-    /* return elem of the found in-order node */
-    return ret_node->elem;
+    return ret;
 }
 
 set_iter_t *set_createiter(set_t *set) {
@@ -370,9 +368,9 @@ void set_destroyiter(set_iter_t *iter) {
 }
 
 void *set_next(set_iter_t *iter) {
-    treenode_t *curr = iter->node->elem;
-    iter->node->elem = next_node_inorder(iter);
-    return curr;
+    treenode_t *curr = next_node_inorder(iter);
+    /* if end of tree is reached, curr->elem will be NULL */
+    return curr->elem;
 }
 
 int set_hasnext(set_iter_t *iter) {

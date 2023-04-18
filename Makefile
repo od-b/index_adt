@@ -6,8 +6,8 @@
 # You can change these values to test with different implementations (for example chained hashmap vs open addressing) 
 LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
-SET_SRC=aatreeset.c
-INDEX_SRC=index_a.c rbtree.c
+SET_SRC=rbtreeset.c
+INDEX_SRC=index_a.c
 
 # Directories
 INCLUDE_DIR=include

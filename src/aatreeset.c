@@ -455,10 +455,8 @@ int set_hasnext(set_iter_t *iter) {
 
 void *set_next(set_iter_t *iter) {
     if (iter->node == nullNode) {
-        ERROR_PRINT("set iterator exhausted");
         return NULL;
     }
-
     void *elem = iter->node->elem;
     iter->node = iter->node->next;
     return elem;

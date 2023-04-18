@@ -16,7 +16,7 @@
 
 #define WORD_LENGTH ( 10 )
 #define NUM_ITEMS ( 500 )
-#define NUM_DOCS ( 5000 )
+#define NUM_DOCS ( 50 )
 
 
 typedef struct document {

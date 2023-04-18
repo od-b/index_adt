@@ -264,29 +264,30 @@ void list_sort(list_t *list) {
 
 /*
  * Not actually used.
+ * note: commenting out to silence compiler warnings
  */
-static void list_selection_sort(list_t *list) {
-    listnode_t *min, *i, *j;
-
-    if (list->size < 2) {
-	    return;
-    }
-
-    /* Selection sort */
-    for (i = list->head; i != NULL; i = i->next) {
-	    min = i;
-	    for (j = i->next; j != NULL; j = j->next) {
-	        if (list->cmpfunc(j->elem, min->elem) < 0) {
-		        min = j;
-            }
-	    }
-	    if (min != i) {
-	        void *tmp = min->elem;
-	        min->elem = i->elem;
-	        i->elem = tmp;
-	    }
-    }
-}
+// static void list_selection_sort(list_t *list) {
+//     listnode_t *min, *i, *j;
+// 
+//     if (list->size < 2) {
+// 	    return;
+//     }
+// 
+//     /* Selection sort */
+//     for (i = list->head; i != NULL; i = i->next) {
+// 	    min = i;
+// 	    for (j = i->next; j != NULL; j = j->next) {
+// 	        if (list->cmpfunc(j->elem, min->elem) < 0) {
+// 		        min = j;
+//             }
+// 	    }
+// 	    if (min != i) {
+// 	        void *tmp = min->elem;
+// 	        min->elem = i->elem;
+// 	        i->elem = tmp;
+// 	    }
+//     }
+// }
 
 list_iter_t *list_createiter(list_t *list) {
     list_iter_t *iter = malloc(sizeof(list_iter_t));

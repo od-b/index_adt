@@ -1,9 +1,9 @@
-#include "printing.h"
 #include "tree.h"
+#include "printing.h"
 
-// #include <stdlib.h>
-// #include <stdio.h>
-// #include <stdint.h>
+// #include <stdint.h> --> imported through common.h
+// #include <stdio.h>  --> imported through common.h
+// #include <stdlib.h> --> imported through printing.h
 
 
 typedef struct treenode {
@@ -11,7 +11,7 @@ typedef struct treenode {
     struct treenode *left;
     struct treenode *right;
     void *elem;
-    int8_t black;
+    int_fast8_t black;
 } treenode_t;
 
 typedef struct tree {
@@ -28,7 +28,6 @@ tree_t *tree_create(cmpfunc_t cmpfunc) {
     tree_t *new_tree = malloc(sizeof(tree_t));
     treenode_t *sentinel = malloc(sizeof(treenode_t));
     if (new_tree == NULL || sentinel == NULL) {
-        ERROR_PRINT("out of memory\n");
         return NULL;
     }
 
@@ -52,18 +51,19 @@ int tree_size(tree_t *tree) {
     return tree->size;
 }
 
-/* recursive part of tree_destroy */
-static void node_destroy(treenode_t *node) {
-    // postorder recursive call stack
-    if (node->elem == NULL) return;  // ... if node == tree->NIL
-    node_destroy(node->left);
-    node_destroy(node->right);
+/* postorder recursive call stack to destroy the tree bottom-up */
+static void node_destroy(treenode_t *node, treenode_t *sentinel) {
+    if (node == sentinel) 
+        return;
+
+    node_destroy(node->left, sentinel);
+    node_destroy(node->right, sentinel);
     free(node);
 }
 
 void tree_destroy(tree_t *tree) {
     // call the recursive part first
-    node_destroy(tree->root);
+    node_destroy(tree->root, tree->NIL);
     // free sentinel (NIL-node), then tree itself
     free(tree->NIL);
     free(tree);
@@ -118,9 +118,9 @@ static void rotate_right(tree_t *tree, treenode_t *a) {
     b->right = a;
 }
 
-void *tree_contains(tree_t *tree, void *elem) {
+int tree_contains(tree_t *tree, void *elem) {
     treenode_t *curr = tree->root;
-    int8_t direction;
+    int_fast8_t direction;
 
     /* traverse until a NIL-node, or return is an equal element is found */
     while (curr != tree->NIL) {
@@ -131,26 +131,33 @@ void *tree_contains(tree_t *tree, void *elem) {
             curr = curr->left;
         } else {
             // ... direction == 0, tree contains an equal element
-            return curr->elem;
+            return 1;
         }
     }
 
     // tree does not contain an equal element
-    return NULL;
+    return 0;
 }
 
-// /* 
-//  * Iterative node adding
-//  * This approach is a bit ugly/spacious, but does not allocate any
-//  * memory until we're certain elem is to be added
-//  * returns:
-//  * a) NULL, if node was succesfully added
-//  * c) the node with an equal element, if elem was a duplicate add attempt
-//  */
-// static treenode_t *node_add(tree_t *tree, void *elem) {
-//     treenode_t *NIL = tree->NIL;
-//     treenode_t *curr = tree->root;
-//     int8_t direction;
+void *tree_get(tree_t *tree, void *elem) {
+    treenode_t *curr = tree->root;
+    int_fast8_t direction;
+
+    /* traverse until a NIL-node, or return is an equal element is found */
+    while (curr != tree->NIL) {
+        direction = tree->cmpfunc(elem, curr->elem);
+        if (direction > 0) {
+            curr = curr->right;
+        } else if (direction < 0) {
+            curr = curr->left;
+        } else {
+            return curr->elem;
+        }
+    }
+
+    // elem does not exist in tree, and so cannot be returned.
+    return NULL;
+}
 
 //     /* traverse until a NIL-node, or node with equal element is found */
 //     while (1) {
@@ -189,10 +196,10 @@ void *tree_contains(tree_t *tree, void *elem) {
 
 /* balance the tree after adding a node */
 static void post_add_balance(tree_t *T, treenode_t *added_node) {
-    int8_t curr_is_leftchild, par_is_leftchild;
+    int_fast8_t curr_is_leftchild, par_is_leftchild;
     treenode_t *curr, *par, *unc, *gp;
-    curr = added_node;
 
+    curr = added_node;
     while (!curr->parent->black) {
         par = curr->parent;
         gp = par->parent;
@@ -252,11 +259,14 @@ void *tree_add(tree_t *tree, void *elem) {
     /* add elem to the tree */
     treenode_t *NIL = tree->NIL;
     treenode_t *curr = tree->root;
-    int8_t direction;
+    int_fast8_t direction;
     treenode_t *new_node = NULL;
 
-    /* iteratively add the node. Can be a lot faster than recursion, depending on CPU. */
-    /* traverse until a NIL-node, or node with equal element is found */
+    /* iteratively add the node.
+     * traverses the tree using cmpfunc until a NIL-node, or node with equal element is found.
+     * if an equal element if found, returns it. Otherwise, creates a new node and breaks the loop.
+     * TODO: compare iterative and recursion add speed on different architectures
+     */
     while (1) {
         direction = tree->cmpfunc(elem, curr->elem);
         if (direction > 0) {

@@ -118,7 +118,6 @@ static list_t *tokenize_query(char *query) {
     processed = list_create(compare_strings);
 
     while (*query != '\0') {
-        /* note: think a switch would be better here honestly, but idk*/
         if (isspace(*query)) {
             /* Ignore whitespace */
             query++;
@@ -448,7 +447,7 @@ int main(int argc, char **argv) {
         tokenize_file(fullpath, words);
         index_addpath(idx, relpath, words);
 
-        free (fullpath);
+        free(fullpath);
         list_destroy(words);
     }
 

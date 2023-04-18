@@ -39,19 +39,21 @@ struct set_iter {
 
 /*
  * Returns the maximum of two integers.
+ * note: unused, commenting out to silence compiler warnings
  */
-static int max(int a, int b) {
-    return (a > b) ? a : b;
-}	
+// static int max(int a, int b) {
+//     return (a > b) ? a : b;
+// }	
 
 /*
  * Returns the maximum depth of a tree.
+ * note: unused, commenting out to silence compiler warnings
  */
-static int maxdepth(treenode_t *n) {
-    if (n == nullNode)
-        return 0;
-    return 1 + max(maxdepth(n->left), maxdepth(n->right));
-}
+// static int maxdepth(treenode_t *n) {
+//     if (n == nullNode)
+//         return 0;
+//     return 1 + max(maxdepth(n->left), maxdepth(n->right));
+// }
 
 /*
  * Asserts that a node is valid.

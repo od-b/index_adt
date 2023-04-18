@@ -8,11 +8,6 @@
 // #include <stdio.h> -- included through common.h
 // #include <stdlib.h> -- included through printing.h
 
-
-
-#define PINFO  0
-
-
 typedef struct index {
     tree_t  *indexed_words;      /* tree containing all i_word_t within the index */
     list_t  *indexed_files;      /* list to store all indexed paths. mainly used for freeing memory. */
@@ -28,6 +23,45 @@ typedef struct indexed_word {
     tree_t  *files_with_word;
 } i_word_t;
 
+
+/* --- DEBUGGING TOOLS --- */
+
+#define PINFO  1
+
+/* debugging function to print result details */
+static void print_results(list_t *results, list_t *query) {
+    list_iter_t *query_iter = list_createiter(query);
+    char *buf[255];
+    int n = 0;
+
+    char *query_term;
+    while ((query_term = list_next(query_iter)) != NULL) {
+        size_t len = strlen(query_term);
+        for (size_t i = 0; i < len; i++, n++) {
+            buf[n] = &query_term[i];
+        }
+    }
+    buf[n] = "\0";
+    list_destroyiter(query_iter);
+
+    list_iter_t *iter = list_createiter(results);
+    query_result_t *result;
+
+    printf("\nFound %d results for query '%s' = {\n", list_size(results), *buf);
+
+    n = 0;
+    while ((result = list_next(iter)) != NULL) {
+        printf(" result #%d = {\n   score: %lf\n", n, result->score);
+        printf("   path: %s\n }\n", result->path);
+        n++;
+    }
+    printf("}\n");
+
+    list_destroyiter(iter);
+}
+
+
+/* --- COMPARE FUNCTIONS --- */
 
 /* compares two i_file_t objects by their ->path */
 int compare_i_files_by_path(i_file_t *a, i_file_t *b) {
@@ -47,14 +81,12 @@ int compare_i_words_by_n_occurances(i_word_t *a, i_word_t *b) {
     );
 }
 
-// typedef struct query_result {
-//     char *path;
-//     double score;
-// } query_result_t;
-
 int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
     return (a->score - b->score);
 }
+
+
+/* --- CREATION, DESTRUCTION --- */
 
 /* frees the indexed word, it's word string, and tree. Does not affect tree content. */
 static void destroy_indexed_word(i_word_t *indexed_word) {
@@ -117,8 +149,11 @@ void index_destroy(index_t *index) {
     list_destroyiter(file_iter);
     list_destroy(index->indexed_files);
 
+
     /* lastly, free the index. All memory should now be reclaimed by the system. */
     free(index);
+
+    if (PINFO) printf("cleanup done\n");
 }
 
 /*
@@ -147,10 +182,10 @@ static i_file_t *create_indexed_file(char *path) {
 }
 
 /* 
- * creates and returns an indexed word with a borrowed string pointer. 
- * The i_word_t has files_with_word == NULL.
+ * initializes a new indexed word.
+ * Does not copy the word, nor create the files_with_word attribute.
  */
-static i_word_t *create_tmp_indexed_word(char* word) {
+static i_word_t *create_tmp_indexed_word(char *word) {
     i_word_t *tmp_word = malloc(sizeof(i_word_t));
     if (tmp_word == NULL) {
         ERROR_PRINT("out of memory");
@@ -163,9 +198,9 @@ static i_word_t *create_tmp_indexed_word(char* word) {
 }
 
 /*
- * initialize the attributes of an i_word_t.
- * replaces its word with a permanent copy.
- * creates an empty tree @ indexed_word->files_with_word, with cmpfunc_t := compare_i_files_by_path
+ * initialize the attributes of a "temp" i_word_t.
+ * replaces its ->word with a permanent copy of that word. the original word is unchanged.
+ * creates an empty ->files_with_word, with cmpfunc_t := compare_i_files_by_path
  */
 static void initialize_indexed_word(i_word_t *indexed_word) {
     char *word_cpy = copy_string(indexed_word->word);
@@ -180,21 +215,21 @@ static void initialize_indexed_word(i_word_t *indexed_word) {
 }
 
 void index_addpath(index_t *index, char *path, list_t *words) {
-    /* create iter for list of words */
     list_iter_t *words_iter = list_createiter(words);
 
-    /* create i_file_t from path. free path. */
+    /* i_file_t to store the path + words currently being indexed */
     i_file_t *new_i_file = create_indexed_file(path);
+    free(path);
 
-    /* add newly indexed file to the list of indexed files */
+    /* add newly indexed file to the centralized list of indexed files */
     int8_t list_add_ok = list_addlast(index->indexed_files, new_i_file);
 
     if (words_iter == NULL || new_i_file == NULL || !list_add_ok) {
         ERROR_PRINT("out of memory");
     }
 
-    /* as a copy of the path is in the indexed file, free the given path */
-    free(path);
+    int n_dup_words = 0;
+    int n_new_words = 0;
 
     /* iterate over all words in the provided list */
     void *elem;
@@ -207,14 +242,18 @@ void index_addpath(index_t *index, char *path, list_t *words) {
 
         /* check whether word is a duplicate by comparing adress to the temp word */
         if (&curr_i_word->word != &tmp_i_word->word) {
-            if (PINFO)
-                printf("DUP: %s\n", curr_i_word->word);
+            if (PINFO) {
+                // printf("DUP: %s\n", curr_i_word->word);
+                n_dup_words += 1;
+            }
             /* word is duplicate. free the struct. */
             free(tmp_i_word);
         } else {
-            if (PINFO)
-                printf("new: %s\n", curr_i_word->word);
-            /* not a duplicate, finalize initialization of the tmp word. (no longer temporary) */
+            if (PINFO) {
+                n_new_words += 1;
+                // printf("new: %s\n", curr_i_word->word);
+            }
+            /* not a duplicate, finalize initialization of the tmp word, making it permanent. */
             initialize_indexed_word(tmp_i_word);
         }
 
@@ -230,6 +269,12 @@ void index_addpath(index_t *index, char *path, list_t *words) {
 
         /* add word to the file index */
         tree_add(new_i_file->words, curr_i_word);
+    }
+
+    if (PINFO) {
+        printf("added file with path: '%s'\n", new_i_file->path);
+        printf("  new words in file: %d\n", n_new_words);
+        printf("  duplicate/common words in file: %d\n", n_dup_words);
     }
 
     /* cleanup */
@@ -262,7 +307,7 @@ query_result_t *create_query_result(char *path, double score) {
 
 static void add_query_results(index_t *index, list_t *results, char *query_word) {
     i_word_t *search_word = create_tmp_indexed_word(query_word);
-    i_word_t *indexed_word = tree_contains(index->indexed_words, search_word);
+    i_word_t *indexed_word = tree_get(index->indexed_words, search_word);
     free(search_word);
 
     if (indexed_word == NULL) {
@@ -283,42 +328,21 @@ static void add_query_results(index_t *index, list_t *results, char *query_word)
     tree_destroyiter(file_iter);
 }
 
-/*
- * debugging function to print result details 
- */
-static void print_results(list_t *results, list_t *query) {
-    if (!PINFO) return;
-
-    list_iter_t *query_iter = list_createiter(query);
-    char *buf[255];
-    int n = 0;
-
-    char *query_term;
-    while ((query_term = list_next(query_iter)) != NULL) {
-        size_t len = strlen(query_term);
-        for (size_t i = 0; i < len; i++, n++) {
-            buf[n] = &query_term[i];
-        }
-    }
-    buf[n] = "\0";
-    list_destroyiter(query_iter);
-
-    list_iter_t *iter = list_createiter(results);
-    query_result_t *result;
-
-    printf("Found %d results for query '%s' = {", list_size(results), *buf);
-
-    n = 0;
-    while ((result = list_next(iter)) != NULL) {
-        printf(" result #%d = {\n   score: %lf\n", n, result->score);
-        printf("   path: %s\n }\n", result->path);
-        n++;
-    }
-    printf("}\n");
-
-    list_destroyiter(iter);
-}
-
+/* validate that a given search word is not a string reserved for syntax logic */
+// static int is_reserved_word(char *word) {
+//     if (strcmp(word, "ANDNOT") == 0)
+//         return 1;
+//     else if (strcmp(word, "AND") == 0)
+//         return 1;
+//     else if (strcmp(word, "OR") == 0)
+//         return 1;
+//     else if (strcmp(word, "(") == 0)
+//         return 1;
+//     else if (strcmp(word, ")") == 0)
+//         return 1;
+//     else
+//         return 0;
+// }
 
 /*
  * Performs the given query on the given index.  If the query
@@ -335,14 +359,12 @@ list_t *index_query(index_t *index, list_t *query, char **errmsg) {
         return respond_with_errmsg("out of memory", errmsg);
     }
 
-    char *query_word;
     if (list_size(query) == 1) {
-        query_word = list_next(query_iter);
         /* TODO: validate search word */
-        add_query_results(index, results, query_word);
+        add_query_results(index, results, list_next(query_iter));
         list_destroyiter(query_iter);
 
-        print_results(results, query);
+        if (PINFO) print_results(results, query);
         return results;
     }
 
@@ -365,3 +387,4 @@ list_t *index_query(index_t *index, list_t *query, char **errmsg) {
 
 
 /* make clean && make assert_index && lldb assert_index */
+/* make clean && make indexer && ./indexer data/cacm/ */

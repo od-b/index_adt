@@ -6,8 +6,7 @@
  * ----- REFERENCES -----
  *
  * The code within this file is an altered version of code used in an earlier assignment.
- * The tree was implemented with the upcoming exam in mind, had i known i was required to 
- * reference my own work - i would likely have submitted a regular BST in place of this.
+ * The code within this file is my own work.
  * 
  * ----------------------
 */

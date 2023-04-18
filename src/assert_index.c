@@ -14,10 +14,10 @@
 #include "set.h"
 #include "printing.h"
 
-#define WORD_LENGTH ( 10 )
-#define NUM_ITEMS ( 500 )
-#define NUM_DOCS ( 50 )
-
+#define WORD_LENGTH ( 5 )
+#define NUM_ITEMS ( 200 )
+#define NUM_DOCS ( 2000 )
+#define PTIME  1
 
 typedef struct document {
     set_t *terms;
@@ -149,10 +149,17 @@ int main(int argc, char **argv) {
         index_addpath(ind, strdup(docs[i].path), words);
         list_destroy(words);
     }
+    unsigned long long t_start;
+    if (PTIME) t_start = gettime();
 
     DEBUG_PRINT("Running a series of single term queries to validate the index...\n");
     validate_index(ind);
     DEBUG_PRINT("Success!\n");
+
+    if (PTIME) {
+        unsigned long long t_end = gettime();
+        printf("query took %llu μs\n", t_end-t_start);
+    }
 
     index_destroy(ind);
 
@@ -161,3 +168,93 @@ int main(int argc, char **argv) {
         doc_destroy(&docs[i]);
     }
 }
+
+
+/* initial, simple testing of validate_index
+
+// rbtree vs aatree -- single term queries -- all debug flags, 5 runs:
+
+Run one:
+WORD_LENGTH ( 5 )
+NUM_ITEMS ( 500 )
+NUM_DOCS ( 100 )
+
+rbtreeset:
+query took 74242 μs
+query took 76714 μs
+query took 73065 μs
+query took 73142 μs
+query took 72773 μs
+
+aatreeset:
+query took 62218 μs
+query took 62924 μs
+query took 60335 μs
+query took 68264 μs
+query took 63969 μs
+
+Run two:
+#define WORD_LENGTH ( 10 )
+#define NUM_ITEMS ( 2000 )
+#define NUM_DOCS ( 200 )
+
+rbtreeset:
+query took 750011 μs
+query took 751826 μs
+query took 739653 μs
+query took 758962 μs
+query took 809426 μs
+
+aatreeset:
+query took 636134 μs
+query took 632887 μs
+query took 640650 μs
+query took 648631 μs
+query took 675516 μs
+
+Notes: aatree faster for single word queries using random words. Scaling seems ≈ the same for both.
+
+Run three:
+#define WORD_LENGTH ( 5 )
+#define NUM_ITEMS ( 200 )
+#define NUM_DOCS ( 2000 )
+
+rbtreeset:
+query took 10219844 μs
+query took 10302288 μs
+query took 10212572 μs
+query took 10260200 μs
+query took 10264125 μs
+
+aatreeset:
+query took 8644670 μs
+query took 8698660 μs
+query took 8813897 μs
+query took 8711854 μs
+query took 9802243 μs
+
+Note: gap seems almost constant as a percentage.
+
+Testing with -O2 and no debug flags
+
+#define WORD_LENGTH ( 5 )
+#define NUM_ITEMS ( 200 )
+#define NUM_DOCS ( 2000 )
+
+rbtreeset:
+query took 9291487 μs
+query took 9061225 μs
+query took 9169199 μs
+query took 9078361 μs
+query took 9302959 μs
+
+aatreeset:
+query took 8141901 μs
+query took 8310149 μs
+query took 8126537 μs
+query took 8127447 μs
+query took 8407227 μs
+
+Note: fairly consistent 10% gain from the aatree.
+
+*/

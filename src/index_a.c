@@ -27,7 +27,7 @@ typedef struct indexed_word {
 /* --- DEBUGGING TOOLS --- */
 
 #define PINFO  0
-#define PTIME  1
+#define PTIME  0
 
 static void print_query_string(list_t *query) {
     list_iter_t *query_iter = list_createiter(query);
@@ -326,7 +326,9 @@ static void add_query_results(index_t *index, list_t *results, char *query_word)
 }
 
 list_t *index_query(index_t *index, list_t *query, char **errmsg) {
-    unsigned long long t_start = gettime();
+    unsigned long long t_start;
+    if (PTIME) t_start = gettime();
+
     list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
 
     // if (PINFO) {

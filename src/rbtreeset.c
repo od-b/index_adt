@@ -1,26 +1,45 @@
-// #include "tree.h"
 #include "set.h"
 #include "printing.h"
 
-struct set;
-typedef struct set set_t;
 
-typedef struct treenode {
-    struct treenode *parent;
-    struct treenode *left;
-    struct treenode *right;
+/*
+ * ----- REFERENCES -----
+ *
+ * The code within this file is an altered version of code used in an earlier assignment.
+ * The tree was implemented with the upcoming exam in mind, had i known i was required to 
+ * reference my own work - i would likely have submitted a regular BST in place of this.
+ * 
+ * ----------------------
+*/
+
+
+/*
+ * Implementation of a Red-Black BST. Inorder iterator with no list, stack or queue.
+ * Traversal is done iteratively as this proved to be slightly faster through testing.
+ * (exception being tree_destroy, which is only performed once per tree)
+*/
+
+
+struct treenode;
+typedef struct treenode treenode_t;
+
+struct treenode {
+    treenode_t *parent;
+    treenode_t *left;
+    treenode_t *right;
     void *elem;
     int_fast8_t black;
-} treenode_t;
+};
 
-struct set {
+typedef struct set {
     treenode_t *root;
     /* The sentinel-node (NIL) functions as a 'colored NULL-pointer' for leaf nodes 
      * eliminates a lot of edge-case conditions for the various rotations, etc. */
     treenode_t *NIL;
     cmpfunc_t cmpfunc;
     int size;
-};
+} set_t;
+
 
 set_t *set_create(cmpfunc_t cmpfunc) {
     set_t *new_set = malloc(sizeof(set_t));
@@ -29,7 +48,7 @@ set_t *set_create(cmpfunc_t cmpfunc) {
         return NULL;
     }
 
-    /* create the sentinel */
+    /* create the sentinel aka. NIL */
     sentinel->left = NULL;
     sentinel->right = NULL;
     sentinel->parent = NULL;
@@ -68,16 +87,14 @@ void set_destroy(set_t *tree) {
 }
 
 
-/* ---------------Insertion, searching, rotation-----------------
- * TODO: Deletion, tree copying
-*/
+/* ---------------Insertion, searching, rotation----------------- */
 
-/* rotate node counter-clockwise */
+/* rotate nodes counter-clockwise */
 static void rotate_left(set_t *tree, treenode_t *a) {
     treenode_t *b = a->right;
     treenode_t *c = a->right->left;
 
-    /* fix root _or_ node a parents' left/right pointers */
+    /* fix root _or_ node 'a' parents' left/right pointers */
     if (a == tree->root) {
         tree->root = b;
     } else {
@@ -94,12 +111,12 @@ static void rotate_left(set_t *tree, treenode_t *a) {
     b->left = a;
 }
 
-/* rotate node clockwise */
+/* rotate nodes clockwise */
 static void rotate_right(set_t *tree, treenode_t *a) {
     treenode_t *b = a->left;
     treenode_t *c = a->left->right;
 
-    /* change root _or_ node a parents' left/right pointers */
+    /* change root _or_ node 'a' parents' left/right pointers */
     if (a == tree->root) {
         tree->root = b;
     } else {
@@ -120,7 +137,7 @@ int set_contains(set_t *set, void *elem) {
     treenode_t *curr = set->root;
     int_fast8_t direction;
 
-    /* traverse until a NIL-node, or return is an equal element is found */
+    /* traverse until a NIL-node, or return if an equal element is found */
     while (curr != set->NIL) {
         direction = set->cmpfunc(elem, curr->elem);
         if (direction > 0) {
@@ -167,7 +184,7 @@ static void post_add_balance(set_t *T, treenode_t *added_node) {
         par = curr->parent;
         gp = par->parent;
 
-        // determine uncle by parent/grandparent relation
+        // determine uncle by parent to grandparent relation
         (gp->left == par) ? (unc = gp->right) : (unc = gp->left);
 
         // if uncle is red
@@ -177,8 +194,7 @@ static void post_add_balance(set_t *T, treenode_t *added_node) {
             if (gp != T->root) gp->black = 0;
             // grandparent may have a red parent at this point, set curr to gp and re-loop
             curr = gp;
-        }
-        else {
+        } else {
             // determine currents' parent relation (what side)
             (gp->left == par) ? (par_is_leftchild = 1) : (par_is_leftchild = 0);
 
@@ -201,7 +217,7 @@ static void post_add_balance(set_t *T, treenode_t *added_node) {
     }
 }
 
-void *set_try(set_t *tree, void *elem) {
+void *set_put(set_t *tree, void *elem) {
     /* case: tree does not have a root yet */
     if (tree->size == 0) {
         treenode_t *root = malloc(sizeof(treenode_t));
@@ -218,8 +234,6 @@ void *set_try(set_t *tree, void *elem) {
         return elem;
     }
 
-    /* add elem to the tree */
-    treenode_t *NIL = tree->NIL;
     treenode_t *curr = tree->root;
     int_fast8_t direction;
     treenode_t *new_node;
@@ -232,7 +246,7 @@ void *set_try(set_t *tree, void *elem) {
     while (1) {
         direction = tree->cmpfunc(elem, curr->elem);
         if (direction > 0) {
-            if (curr->right == NIL) {
+            if (curr->right == tree->NIL) {
                 new_node = malloc(sizeof(treenode_t));
                 if (new_node == NULL) {
                     ERROR_PRINT("out of memory");
@@ -243,7 +257,7 @@ void *set_try(set_t *tree, void *elem) {
             // else ... move right in tree
             curr = curr->right;
         } else if (direction < 0) {
-            if (curr->left == NIL) {
+            if (curr->left == tree->NIL) {
                 // same as above, but curr->left
                 new_node = malloc(sizeof(treenode_t));
                 if (new_node == NULL) {
@@ -260,10 +274,8 @@ void *set_try(set_t *tree, void *elem) {
         }
     }
 
-    /* ... else, the elem was added, increment tree size */
+    /* new node was added, increment tree size and initialize attributes of the new node. */
     tree->size++;
-
-    /* assign the default values for new nodes */
     new_node->parent = curr;
     new_node->elem = elem;
     new_node->left = tree->NIL;
@@ -279,9 +291,9 @@ void *set_try(set_t *tree, void *elem) {
 }
 
 void set_add(set_t *set, void *elem) {
-    set_try(set, elem);
+    /* to comply with the header */
+    set_put(set, elem);
 }
-
 
 /* -------------------------Iteration----------------------------*/
 
@@ -294,6 +306,7 @@ typedef struct set_iter {
  * Morris traversal implementation
  * Works by creating 'links' between a subtrees 'far right leaf' and (sub)root,
  * through temporary alteration of the tree leafs.
+ * returns the next node from where iter->node is, from an inorder standpoint
  */
 static treenode_t *next_node_inorder(set_iter_t *iter) {
     treenode_t *curr, *ret, *NIL;
@@ -309,10 +322,10 @@ static treenode_t *next_node_inorder(set_iter_t *iter) {
             ret = curr;
             curr = curr->right;
         } else {
-            // ... else, curr has a left child
+            // ... curr has a left child
             // create a predecessor pointer (pre), starting at currents left child
-            // then traverse right with pre until we encounter either NIL or curr
             treenode_t *pre = curr->left;
+            // traverse right with pre until we encounter either NIL or curr
             while (pre->right != NIL && pre->right != curr) {
                 pre = pre->right;
             }
@@ -324,7 +337,7 @@ static treenode_t *next_node_inorder(set_iter_t *iter) {
                 pre->right = curr;
                 curr = curr->left;
             } else {
-                /* ... (pre->right == curr) */
+                // ... pre->right == curr
                 // Delete the link and move curr pointer right
                 pre->right = NIL;
                 ret = curr;
@@ -340,7 +353,7 @@ static treenode_t *next_node_inorder(set_iter_t *iter) {
 set_iter_t *set_createiter(set_t *set) {
     set_iter_t *new_iter = malloc(sizeof(set_iter_t));
     if (new_iter == NULL) {
-        ERROR_PRINT("new_iter == NULL");
+        ERROR_PRINT("out of memory");
         return NULL;
     }
     new_iter->set = set;
@@ -350,12 +363,10 @@ set_iter_t *set_createiter(set_t *set) {
 
 void tree_resetiter(set_iter_t *iter) {
     if (iter->node != iter->set->NIL) {
-        treenode_t *curr = NULL;
-        while (curr != iter->set->NIL) {
-            // finish the morris iterator process to avoid leaving any mutated leaves
-            // this loop does nothing other than correctly finish the iteration process
-            curr = next_node_inorder(iter);
-        }
+        // finish the morris iterator process to avoid leaving any mutated leaves
+        // this loop does nothing other than correctly finish the iteration process
+        treenode_t *curr;
+        for (curr = next_node_inorder(iter); curr != iter->set->NIL; curr = next_node_inorder(iter));
     }
     iter->node = iter->set->root;
 }
@@ -394,10 +405,10 @@ set_t *set_union(set_t *a, set_t *b) {
 
     void *elem;
     while ((elem = set_next(iter_a)) != NULL) {
-        set_add(c, elem);
+        set_put(c, elem);
     }
     while ((elem = set_next(iter_b)) != NULL) {
-        set_add(c, elem);
+        set_put(c, elem);
     }
 
     // clean up
@@ -422,7 +433,7 @@ set_t *set_intersection(set_t *a, set_t *b) {
     void *elem_a;
     while ((elem_a = set_next(iter_a)) != NULL) {
         // if set b contains elem from set a, add it to c
-        if (set_contains(b, elem_a)) set_add(c, elem_a);
+        if (set_contains(b, elem_a)) set_put(c, elem_a);
     }
 
     // clean up
@@ -446,7 +457,7 @@ set_t *set_difference(set_t *a, set_t *b) {
     void *elem_a;
     while ((elem_a = set_next(iter_a)) != NULL) {
         // if set b does NOT contain elem from set a, add it to c
-        if (!set_contains(b, elem_a)) set_add(c, elem_a);
+        if (!set_contains(b, elem_a)) set_put(c, elem_a);
     }
 
     // clean up
@@ -466,6 +477,5 @@ set_t *set_copy(set_t *set) {
         ERROR_PRINT("out of memory\n");
     }
 
-    // memcpy(copy, set, sizeof(set_t));
     return copy;
 }

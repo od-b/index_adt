@@ -42,7 +42,7 @@ void *set_get(set_t *set, void *elem);
  * Try to add an element. If succesful, return value will be the given elem.
  * If elem is a duplicate, returns the duplicate elem.
  */
-void *set_try(set_t *set, void *elem);
+void *set_put(set_t *set, void *elem);
 
 /*
  * Returns 1 if the given element is contained in

@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <ctype.h>
-// #include <unistd.h>
 
 
 #define PORT_NUM 8080
@@ -222,19 +221,19 @@ static void run_query(FILE *f, char *query) {
     list_iter_t *iter;
 
     tokens = preprocess_query(query);
-	
+
     /* Don't run query if query is empty */
     if (!list_size(tokens))
         goto end;
 
     result = index_query(idx, tokens, &errmsg);
+
     if (result != NULL){
         send_results(f, query, result);
         list_destroy(result);
     } else {
         fprintf(f, "<hr/><h3>Error</h3>\n");
-        fprintf(f, "<p>Your query for \"%s\" caused the following error(s): <b>%s</b></p>\n",
-                query, errmsg);
+        fprintf(f, "<p>Your query for \"%s\" caused the following error(s): <b>%s</b></p>\n", query, errmsg);
     }
 
     /* Cleanup */

@@ -24,9 +24,9 @@ This list does not including makefile changes, or additions to common.c/h.
 
 ### Logical or variable type changes / additions
 
-  * Added 'set_try()' and 'set_get()' to set.h.
-    * set_try():
-      Try to add an element. If succesful, return value will be the given elem.
+  * Added 'set_put()' and 'set_get()' to set.h.
+    * set_put():
+      Add an element. If succesful, returns value will be the given elem.
       If elem is a duplicate, returns the duplicate elem.
 
     * set_get()

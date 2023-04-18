@@ -27,6 +27,7 @@ typedef struct indexed_word {
 /* --- DEBUGGING TOOLS --- */
 
 #define PINFO  0
+#define PTIME  1
 
 static void print_query_string(list_t *query) {
     list_iter_t *query_iter = list_createiter(query);
@@ -237,13 +238,13 @@ void index_addpath(index_t *index, char *path, list_t *words) {
         i_word_t *tmp_i_word = create_tmp_indexed_word((char*)elem);
 
         /* add to the main set of indexed words. Store return to determine whether word is duplicate. */
-        i_word_t *curr_i_word = (i_word_t*)set_try(index->indexed_words, tmp_i_word);
+        i_word_t *curr_i_word = (i_word_t*)set_put(index->indexed_words, tmp_i_word);
 
         /* check whether word is a duplicate by comparing adress to the temp word */
         if (&curr_i_word->word != &tmp_i_word->word) {
             if (PINFO) {
-                // printf("DUP: %s\n", curr_i_word->word);
                 n_dup_words += 1;
+                // printf("DUP: %s\n", curr_i_word->word);
             }
             /* word is duplicate. free the struct. */
             free(tmp_i_word);
@@ -325,6 +326,7 @@ static void add_query_results(index_t *index, list_t *results, char *query_word)
 }
 
 list_t *index_query(index_t *index, list_t *query, char **errmsg) {
+    unsigned long long t_start = gettime();
     list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
 
     // if (PINFO) {
@@ -345,7 +347,13 @@ list_t *index_query(index_t *index, list_t *query, char **errmsg) {
         add_query_results(index, results, list_next(query_iter));
         list_destroyiter(query_iter);
 
-        if (PINFO) print_results(results, query);
+        if (PINFO) {
+            print_results(results, query);
+        }
+        if (PTIME) {
+            unsigned long long t_end = gettime();
+            printf("query took %llu μs\n", t_end-t_start);
+        }
         return results;
     }
     return respond_with_errmsg("silence warning", errmsg);

@@ -546,7 +546,7 @@ int http_server(unsigned short port, http_handler_t handler) {
             continue;
         }
 
-        conn = malloc(sizeof (struct http_conn));
+        conn = malloc(sizeof(struct http_conn));
         conn->sock = t;
         conn->handler = handler;
 		

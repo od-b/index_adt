@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <ctype.h>
+// #include <unistd.h>
+
 
 #define PORT_NUM 8080
 
@@ -114,7 +116,6 @@ end:
 static list_t *tokenize_query(char *query) {
     char *term;
     list_t *processed;
-	
     processed = list_create(compare_strings);
 
     while (*query != '\0') {
@@ -129,12 +130,14 @@ static list_t *tokenize_query(char *query) {
             list_addlast(processed, strdup(")"));
             query++;
         } else {
+            /* Get length of term */
             char *s;
-            /* Get length of term*/
-            for(s = query; !is_reserved_char(*s) && *s != '\0'; s++);
+            for (s = query; (!is_reserved_char(*s)) && (*s != '\0'); s++);
+
             /* Copy term */
             term = substring(query, s);
             query = s;
+
             /* add to list */
             list_addlast(processed, term);
         }
@@ -438,10 +441,14 @@ int main(int argc, char **argv) {
 
     iter = list_createiter(files);
 
+    int n = 0;
+
     while (list_hasnext(iter)) {
         relpath = (char *)list_next(iter);
         fullpath = concatenate_strings(2, root_dir, relpath);
-        DEBUG_PRINT("Indexing %s\n", fullpath);
+        if (n % 500 == 0) {
+            DEBUG_PRINT("Indexing %s\n", fullpath);
+        }
 
         words = list_create((cmpfunc_t)strcmp);
         tokenize_file(fullpath, words);
@@ -449,11 +456,13 @@ int main(int argc, char **argv) {
 
         free(fullpath);
         list_destroy(words);
+        n++;
     }
 
     list_destroyiter(iter);
     list_destroy(files);
 
+    // printf("indexer pid: %u", (unsigned int)getpid());
     DEBUG_PRINT("Serving queries on port %s:%d\n", "127.0.0.1", (int)PORT_NUM);
 
     status = http_server((int)PORT_NUM, http_handler);

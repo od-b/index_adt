@@ -26,30 +26,29 @@ typedef struct indexed_word {
 
 /* --- DEBUGGING TOOLS --- */
 
-#define PINFO  1
+#define PINFO  0
 
-/* debugging function to print result details */
-static void print_results(list_t *results, list_t *query) {
+static void print_query_string(list_t *query) {
     list_iter_t *query_iter = list_createiter(query);
-    char *buf[255];
-    int n = 0;
 
     char *query_term;
     while ((query_term = list_next(query_iter)) != NULL) {
-        size_t len = strlen(query_term);
-        for (size_t i = 0; i < len; i++, n++) {
-            buf[n] = &query_term[i];
-        }
+        printf("%s", query_term);
     }
-    buf[n] = "\0";
+    printf("\n");
     list_destroyiter(query_iter);
+}
 
+/* debugging function to print result details */
+static void print_results(list_t *results, list_t *query) {
     list_iter_t *iter = list_createiter(results);
     query_result_t *result;
 
-    printf("\nFound %d results for query '%s' = {\n", list_size(results), *buf);
+    printf("\nFound %d results for query '", list_size(results));
+    print_query_string(query);
+    printf("' = {\n");
 
-    n = 0;
+    int n = 0;
     while ((result = list_next(iter)) != NULL) {
         printf(" result #%d = {\n   score: %lf\n", n, result->score);
         printf("   path: %s\n }\n", result->path);
@@ -286,12 +285,10 @@ void *respond_with_errmsg(char *msg, char **dest) {
     return NULL;
 }
 
-// typedef struct query_result {
-//     char *path;
-//     double score;
-// } query_result_t;
-
-query_result_t *create_query_result(char *path, double score) {
+/*
+ * initializes and returns a new query result 
+ */
+static query_result_t *create_query_result(char *path, double score) {
     query_result_t *result = malloc(sizeof(query_result_t));
     if (result == NULL) {
         ERROR_PRINT("out of memory");
@@ -344,6 +341,14 @@ static void add_query_results(index_t *index, list_t *results, char *query_word)
 //         return 0;
 // }
 
+// int is_valid_term()
+
+
+/*
+ * Syntax parsing:
+*/
+
+
 /*
  * Performs the given query on the given index.  If the query
  * succeeds, the return value will be a list of paths (query_result_t). 
@@ -353,13 +358,21 @@ static void add_query_results(index_t *index, list_t *results, char *query_word)
  */
 list_t *index_query(index_t *index, list_t *query, char **errmsg) {
     list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
+
+
+    printf("query string = ");
+    print_query_string(query);
+    return results;
+
+
     list_iter_t *query_iter = list_createiter(query);
+    int n_terms = list_size(query);
 
     if (query_iter == NULL || results == NULL) {
         return respond_with_errmsg("out of memory", errmsg);
     }
 
-    if (list_size(query) == 1) {
+    if (n_terms == 1) {
         /* TODO: validate search word */
         add_query_results(index, results, list_next(query_iter));
         list_destroyiter(query_iter);
@@ -368,19 +381,17 @@ list_t *index_query(index_t *index, list_t *query, char **errmsg) {
         return results;
     }
 
+    /* query is for more than 1 */
+
     // while ((query_word = list_next(query_iter)) != NULL) {
     //     printf("\nquery_word: '%s'\n", query_word);
     // }
 
     /* 
-        query   ::= andterm
-                | andterm "ANDNOT" query
-        andterm ::= orterm
-                | orterm "AND" andterm
-        orterm  ::= term
-                | term "OR" orterm
-        term    ::= "(" query ")"
-                | <word> 
+        query   ::= andterm | andterm "ANDNOT" query
+        andterm ::= orterm | orterm "AND" andterm
+        orterm  ::= term | term "OR" orterm
+        term    ::= "(" query ")" | <word> 
     */
     return respond_with_errmsg("silence warning", errmsg);
 }
@@ -388,3 +399,5 @@ list_t *index_query(index_t *index, list_t *query, char **errmsg) {
 
 /* make clean && make assert_index && lldb assert_index */
 /* make clean && make indexer && ./indexer data/cacm/ */
+
+/* cd code/C/eksamen23/exam_precode/ && make clean && make indexer && ./indexer data/cacm/  */

@@ -33,6 +33,18 @@ int set_size(set_t *set);
 void set_add(set_t *set, void *elem);
 
 /*
+ * Get an existing element from the set.
+ * Returns NULL if set does not contain the element.
+ */
+void *set_get(set_t *set, void *elem);
+
+/*
+ * Try to add an element. If succesful, return value will be the given elem.
+ * If elem is a duplicate, returns the duplicate elem.
+ */
+void *set_try(set_t *set, void *elem);
+
+/*
  * Returns 1 if the given element is contained in
  * the given set, 0 otherwise.
  */

@@ -360,9 +360,9 @@ list_t *index_query(index_t *index, list_t *query, char **errmsg) {
     list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
 
 
-    printf("query string = ");
-    print_query_string(query);
-    return results;
+    // printf("query string = ");
+    // print_query_string(query);
+    // return results;
 
 
     list_iter_t *query_iter = list_createiter(query);
@@ -399,5 +399,4 @@ list_t *index_query(index_t *index, list_t *query, char **errmsg) {
 
 /* make clean && make assert_index && lldb assert_index */
 /* make clean && make indexer && ./indexer data/cacm/ */
-
 /* cd code/C/eksamen23/exam_precode/ && make clean && make indexer && ./indexer data/cacm/  */

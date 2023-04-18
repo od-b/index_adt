@@ -145,6 +145,41 @@ int set_contains(set_t *set, void *elem) {
     return 0;
 }
 
+void *set_get(set_t *set, void *elem) {
+    treenode_t *n = set->root;
+    int cmp;
+
+    while (n != NULL) {
+        cmp = set->cmpfunc(elem, n->elem);
+        if (cmp < 0)
+            n = n->left;
+        else if (cmp > 0)
+            n = n->right;
+        else /* Found it */
+            return n->elem;
+    }
+    /* No dice */
+    return NULL;
+}
+
+void *set_try(set_t *set, void *elem) {
+    /* 
+     * low effort implementation of set_put to accomodate for header changes.
+     * performance-vise identical as set_contains followed by set_add()
+    */
+
+    treenode_t *n = set->root;
+    int cmp;
+
+    void *duplicate = set_get(set, elem);
+
+    if (duplicate == NULL) {
+        set_add(set, elem);
+        return elem;
+    }
+    return duplicate;
+}
+
 /*
  * Builds a balanced tree from the N first elements of the
  * given sorted list.  Assigns the first, root and last node

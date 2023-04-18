@@ -2,17 +2,14 @@
 
 # Precode: Thoughts, Issues, Changes, Notes
 
-## Thoughts:
+<!-- ## Thoughts:
   * treeset.c and aatreeset.c being merged set/list implementations greatly limits the possibilites
   of using several different type sets within one file.  
     If set.h was renamed treeset.h, it would allow for a different mapset.c (etc) to exist within the same namespace.
     The drawback of such a change would be reducing the abstraction level of the interface, however,
-    is this abstraction level more important than finding a suitable set implementation for the task?¨
+    is this abstraction level more important than finding a suitable set implementation for the task?¨ -->
 
-## Issues:
-
-
-## Changes:
+# Changes:
 All commited changes to the precode.
 This list does not including makefile changes, or additions to common.c/h.
 
@@ -23,11 +20,26 @@ This list does not including makefile changes, or additions to common.c/h.
   * Renamed linkedlist.c to doublylinkedlist.c for clarity
 
 ### Misc:
-  * update ERROR_PRINT && DEBUG_PRINT to include line. Can be turned off by not defining LINE_PRINT.
+  * updated ERROR_PRINT && DEBUG_PRINT to include line number with message. Can be turned off by not defining LINE_PRINT.
 
-### Logical or variable type changes
+### Logical or variable type changes / additions
 
-  * Changed 'set_add()' to provide a return value
+  * Added 'set_try()' and 'set_get()' to set.h.
+    * set_try():
+      Try to add an element. If succesful, return value will be the given elem.
+      If elem is a duplicate, returns the duplicate elem.
+
+    * set_get()
+      Get an existing element from the set.
+      Returns NULL if set does not contain the element.
+
+    **The existing sets within the precode, aatreeset.c and treeset.c, have been updated to accomodate for this change.**
+
+    These changes are mainly done to allow sets of structs, without having to repeat the process of traversing tree based sets.
+    For sets based on for example lists or dynamic arrays, this does not change anything in regards to their adding process - as these structures would rely on calling set_contains() prior to adding an item. Implementing set_get() for sets built on these data structures would simply be a slight modifications to their versions of set_contains().
+  
+    Detailed reasoning below.
+
     **Definitions**
       * 'tree' := 'binary search tree data structure'
       * 'list' := 'linked list data structure'
@@ -49,15 +61,17 @@ This list does not including makefile changes, or additions to common.c/h.
       At this point, we could check whether x was a duplicate item or not by getting the set size. However, we also want to add y to A->b.
       **If x already existed within the tree, we have no convenient way of accessing A->b at this point.**
 
-      **Solution** => 'set_add(A)' returns:
-        1) a void pointer to the elem in the tree. This can be either the elem which was given, or the existing elem, if duplicate.
-        2) NULL on failure; i.e., out of memory
+      **Solution**
+        * 'set_add(A)' returns:
+          1) a void pointer to the elem in the tree. This can be either the elem which was given, or the existing elem, if duplicate.
+          2) NULL on failure; i.e., out of memory
+        * introduce 'set_get(A)', which returns:
+          1) a void pointer to the elem in the tree. This can be either the elem which was given, or the existing elem, if duplicate.
+          2) NULL on failure; i.e., out of memory
 
       We can now create a temp A, append x to A->a, and depending on set_add(A) response - we can either free the the temp A, or keep the newly created A as a node's item, within the set. Since we get the original A in return if there is one, we can access A->b from there. Thus, an easy way of storing structs in sets, without any changes to the existing code/precode.
 
-      Seeing as 'set_add()' is a void call, this change does not affect any existing calls or functionality to set_add() within the existing precode. Simultaneously, it provides optional, crucial functionality for whenever needed.
-
-
+      Seeing as 'set_add()' is a void call, this change does not affect any existing calls or functionality to set_add() within the existing precode. Simultaneously, it provides optional, and crucial information when needed.
 
 
 Each file holds a tree with pointers to the words within the file.

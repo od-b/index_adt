@@ -167,10 +167,6 @@ void *set_try(set_t *set, void *elem) {
      * low effort implementation of set_put to accomodate for header changes.
      * performance-vise identical as set_contains followed by set_add()
     */
-
-    treenode_t *n = set->root;
-    int cmp;
-
     void *duplicate = set_get(set, elem);
 
     if (duplicate == NULL) {

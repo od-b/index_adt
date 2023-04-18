@@ -141,7 +141,9 @@ int main(int argc, char **argv) {
         words = list_create(compare_strings);
         iter = set_createiter(docs[i].terms);
 
+        int n = 0;
         while (set_hasnext(iter)) {
+            n++;
             list_addfirst(words, strdup((char *)set_next(iter)));
         }
 

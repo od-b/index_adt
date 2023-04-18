@@ -283,9 +283,7 @@ void set_add(set_t *set, void *elem) {
 }
 
 
-/* -------------------------Iteration----------------------------
- * TODO: pre-order iterator for nxtfunc
-*/
+/* -------------------------Iteration----------------------------*/
 
 typedef struct set_iter {
     set_t *set;
@@ -378,6 +376,9 @@ int set_hasnext(set_iter_t *iter) {
         return 0;
     return 1;
 }
+
+
+/* -------------------------Set Specific----------------------------*/
 
 set_t *set_union(set_t *a, set_t *b) {
     if (a->cmpfunc != b->cmpfunc) {

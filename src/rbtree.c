@@ -118,7 +118,7 @@ static void rotate_right(tree_t *tree, treenode_t *a) {
     b->right = a;
 }
 
-int8_t tree_contains(tree_t *tree, void *elem) {
+void *tree_contains(tree_t *tree, void *elem) {
     treenode_t *curr = tree->root;
     int8_t direction;
 
@@ -131,12 +131,12 @@ int8_t tree_contains(tree_t *tree, void *elem) {
             curr = curr->left;
         } else {
             // ... direction == 0, tree contains an equal element
-            return 1;
+            return curr->elem;
         }
     }
 
     // tree does not contain an equal element
-    return 0;
+    return NULL;
 }
 
 // /* 

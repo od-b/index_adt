@@ -16,7 +16,7 @@
 
 #define WORD_LENGTH ( 10 )
 #define NUM_ITEMS ( 500 )
-#define NUM_DOCS ( 50 )
+#define NUM_DOCS ( 5000 )
 
 
 typedef struct document {
@@ -93,10 +93,9 @@ void validate_index(index_t *ind) {
     for (i = 0; i < NUM_DOCS; i++) {
         iter = set_createiter(docs[i].terms);
 
-
         while (set_hasnext(iter)) {
             /* Add to query */
-            term = (char *) set_next(iter);
+            term = (char *)set_next(iter);
             list_addfirst(query, term);
 
             /* Run the query */
@@ -109,7 +108,7 @@ void validate_index(index_t *ind) {
             hitCount = 0;
             while (list_size(result) > 0) {
                 res = list_popfirst(result);
-                if (strcmp (res->path, docs[i].path) == 0) {
+                if (strcmp(res->path, docs[i].path) == 0) {
                     hitCount++;
                 }
                 free(res);
@@ -117,8 +116,7 @@ void validate_index(index_t *ind) {
             list_destroy(result);
 
             if (hitCount == 0){
-                ERROR_PRINT("Document was not returned: term=%s path=%s", 
-                             term, docs[i].path);
+                ERROR_PRINT("Document was not returned: term=%s path=%s", term, docs[i].path);
             }
             list_popfirst(query);
         }

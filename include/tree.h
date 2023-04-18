@@ -20,7 +20,9 @@ int tree_size(tree_t *tree);
 /* Uses cmpfunc to check elements for equality.
  * * Returns NULL if tree does not contain an equal element.
  * * otherwise, returns a pointer to the element */
-int8_t tree_contains(tree_t *tree, void *elem);
+void *tree_contains(tree_t *tree, void *elem);
+
+void *tree_search(tree_t *tree, searchfunc_t *searchfunc);
 
 /* Adds the given element to the tree.
  * Returns:

@@ -13,6 +13,9 @@ struct list;
  */
 typedef int (*cmpfunc_t)(void *, void *);
 
+
+typedef void *(*searchfunc_t)(void *);
+
 /*
  * The type of hash functions.
  */

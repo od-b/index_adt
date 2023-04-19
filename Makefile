@@ -7,7 +7,7 @@
 LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
 SET_SRC=rbtreeset.c
-INDEX_SRC=index_a.c
+INDEX_SRC=index_c.c
 
 # Directories
 INCLUDE_DIR=include
@@ -37,10 +37,10 @@ OPTIM_FLAGS = -O2 -g
 all: indexer assert_index
 
 indexer: $(INDEXER_SRC) $(HEADERS) Makefile
-	gcc -Wall -o $@ -D_GNU_SOURCE -D_REENTRANT $(INDEXER_SRC) -I$(INCLUDE_DIR) -lm -lpthread $(OPTIM_FLAGS)
+	gcc -Wall -o $@ -D_GNU_SOURCE -D_REENTRANT $(INDEXER_SRC) -I$(INCLUDE_DIR) -lm -lpthread $(DEBUG_FLAGS)
 
 assert_index: $(ASSERT_SRC) $(HEADERS) Makefile
-	gcc -o $@ $(ASSERT_SRC) -I$(INCLUDE_DIR) -lm $(OPTIM_FLAGS)
+	gcc -o $@ $(ASSERT_SRC) -I$(INCLUDE_DIR) -lm $(DEBUG_FLAGS)
 
 clean:
 	rm -f *~ *.o *.exe *.out *.prof *.stackdump indexer assert_index

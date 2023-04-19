@@ -371,7 +371,9 @@ void tree_resetiter(set_iter_t *iter) {
 }
 
 void set_destroyiter(set_iter_t *iter) {
-    tree_resetiter(iter);
+    if (iter->node != NULL) {
+        tree_resetiter(iter);
+    }
     free(iter);
 }
 

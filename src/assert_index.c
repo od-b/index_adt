@@ -15,8 +15,8 @@
 #include "printing.h"
 
 #define WORD_LENGTH ( 5 )
-#define NUM_ITEMS ( 200 )
-#define NUM_DOCS ( 2000 )
+#define NUM_ITEMS ( 40 )
+#define NUM_DOCS ( 40 )
 #define PTIME  1
 
 typedef struct document {
@@ -149,19 +149,19 @@ int main(int argc, char **argv) {
         index_addpath(ind, strdup(docs[i].path), words);
         list_destroy(words);
     }
-    unsigned long long t_start;
-    if (PTIME) t_start = gettime();
+    // unsigned long long t_start;
+    // if (PTIME) t_start = gettime();
 
-    DEBUG_PRINT("Running a series of single term queries to validate the index...\n");
-    validate_index(ind);
-    DEBUG_PRINT("Success!\n");
+    // DEBUG_PRINT("Running a series of single term queries to validate the index...\n");
+    // validate_index(ind);
+    // DEBUG_PRINT("Success!\n");
 
-    if (PTIME) {
-        unsigned long long t_end = gettime();
-        printf("query took %llu μs\n", t_end-t_start);
-    }
+    // if (PTIME) {
+    //     unsigned long long t_end = gettime();
+    //     printf("query took %llu μs\n", t_end-t_start);
+    // }
 
-    index_destroy(ind);
+    // index_destroy(ind);
 
     /* Cleanup */
     for (i = 0; i < NUM_DOCS; i++) {

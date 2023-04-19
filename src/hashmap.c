@@ -166,7 +166,6 @@ void *map_get(map_t *map, void *key) {
     }
 
     if (e == NULL) {
-        ERROR_PRINT("key not found in map");
         return NULL;
     } else {
         return e->value;

@@ -14,9 +14,9 @@
 #include "set.h"
 #include "printing.h"
 
-#define WORD_LENGTH ( 5 )
-#define NUM_ITEMS ( 40 )
-#define NUM_DOCS ( 40 )
+#define WORD_LENGTH ( 40 )
+#define NUM_ITEMS ( 200 )
+#define NUM_DOCS ( 500 )
 #define PTIME  1
 
 typedef struct document {
@@ -79,6 +79,8 @@ void doc_destroy(document_t *doc) {
 
 /* Runs a series of queries and validates the index */
 void validate_index(index_t *ind) {
+    unsigned long long t_time = 0;
+
     int i, hitCount;
     // set_t *w; // note: unused
     list_t *query;
@@ -99,7 +101,14 @@ void validate_index(index_t *ind) {
             list_addfirst(query, term);
 
             /* Run the query */
+            unsigned long long t_start;
+            if (PTIME) t_start = gettime();
+
             result = index_query(ind, query, &errmsg);
+
+            if (PTIME) {
+                t_time += (gettime() - t_start);
+            }
             if (result == NULL) {
                 ERROR_PRINT("Query resulted in the following error: %s", errmsg);
             }
@@ -123,6 +132,8 @@ void validate_index(index_t *ind) {
         set_destroyiter(iter);
     }
     list_destroy(query);
+
+    if (PTIME) printf("queries took a total of %llu μs\n", t_time);
 }
 
 int main(int argc, char **argv) {
@@ -149,19 +160,13 @@ int main(int argc, char **argv) {
         index_addpath(ind, strdup(docs[i].path), words);
         list_destroy(words);
     }
-    // unsigned long long t_start;
-    // if (PTIME) t_start = gettime();
 
-    // DEBUG_PRINT("Running a series of single term queries to validate the index...\n");
-    // validate_index(ind);
-    // DEBUG_PRINT("Success!\n");
+    DEBUG_PRINT("Running a series of single term queries to validate the index...\n");
+    validate_index(ind);
+    DEBUG_PRINT("Success!\n");
 
-    // if (PTIME) {
-    //     unsigned long long t_end = gettime();
-    //     printf("query took %llu μs\n", t_end-t_start);
-    // }
 
-    // index_destroy(ind);
+    index_destroy(ind);
 
     /* Cleanup */
     for (i = 0; i < NUM_DOCS; i++) {
@@ -170,91 +175,87 @@ int main(int argc, char **argv) {
 }
 
 
-/* initial, simple testing of validate_index
+/* 
+Experiment:
+Simple time-based tests, comparing index_A to index_B.
+The tests will be done using assert index, meaning single term queries only.
+A timer collects cumulative time spent within index_query() only, and prints the result.
+While these tests by no means will be indicative as to which is the 'better' option, 
+the results could possible give an idea of what tests should be performed at a later stage of development.
 
-// rbtree vs aatree -- single term queries -- all debug flags, 5 runs:
+All tests will be performed with flags: -O2 -g
 
-Run one:
-WORD_LENGTH ( 5 )
-NUM_ITEMS ( 500 )
-NUM_DOCS ( 100 )
-
-rbtreeset:
-query took 74242 μs
-query took 76714 μs
-query took 73065 μs
-query took 73142 μs
-query took 72773 μs
-
-aatreeset:
-query took 62218 μs
-query took 62924 μs
-query took 60335 μs
-query took 68264 μs
-query took 63969 μs
-
-Run two:
+------------------ index_A.c -------------------
 #define WORD_LENGTH ( 10 )
-#define NUM_ITEMS ( 2000 )
-#define NUM_DOCS ( 200 )
-
-rbtreeset:
-query took 750011 μs
-query took 751826 μs
-query took 739653 μs
-query took 758962 μs
-query took 809426 μs
-
-aatreeset:
-query took 636134 μs
-query took 632887 μs
-query took 640650 μs
-query took 648631 μs
-query took 675516 μs
-
-Notes: aatree faster for single word queries using random words. Scaling seems ≈ the same for both.
-
-Run three:
-#define WORD_LENGTH ( 5 )
 #define NUM_ITEMS ( 200 )
+#define NUM_DOCS ( 500 )
+
+queries took a total of 178458 μs                             
+queries took a total of 150633 μs
+queries took a total of 151839 μs
+queries took a total of 151722 μs
+queries took a total of 156317 μs
+
+---
+
+#define WORD_LENGTH ( 10 )
+#define NUM_ITEMS ( 500 )
 #define NUM_DOCS ( 2000 )
+queries took a total of 7736915 μs
+queries took a total of 7862573 μs
 
-rbtreeset:
-query took 10219844 μs
-query took 10302288 μs
-query took 10212572 μs
-query took 10260200 μs
-query took 10264125 μs
+---
 
-aatreeset:
-query took 8644670 μs
-query took 8698660 μs
-query took 8813897 μs
-query took 8711854 μs
-query took 9802243 μs
-
-Note: gap seems almost constant as a percentage.
-
-Testing with -O2 and no debug flags
-
-#define WORD_LENGTH ( 5 )
+#define WORD_LENGTH ( 40 )
 #define NUM_ITEMS ( 200 )
+#define NUM_DOCS ( 500 )
+queries took a total of 63305 μs
+queries took a total of 63364 μs
+queries took a total of 61463 μs
+queries took a total of 60665 μs
+
+------------------ index_B.c -------------------
+#define WORD_LENGTH ( 10 )
+#define NUM_ITEMS ( 200 )
+#define NUM_DOCS ( 500 )
+queries took a total of 246347 μs
+queries took a total of 223138 μs
+queries took a total of 224561 μs
+queries took a total of 221872 μs
+queries took a total of 224945 μs
+
+--- 
+
+#define WORD_LENGTH ( 10 )
+#define NUM_ITEMS ( 500 )
 #define NUM_DOCS ( 2000 )
+queries took a total of 12707335 μs
+queries took a total of 12803705 μs
 
-rbtreeset:
-query took 9291487 μs
-query took 9061225 μs
-query took 9169199 μs
-query took 9078361 μs
-query took 9302959 μs
+---
 
-aatreeset:
-query took 8141901 μs
-query took 8310149 μs
-query took 8126537 μs
-query took 8127447 μs
-query took 8407227 μs
+#define WORD_LENGTH ( 40 )
+#define NUM_ITEMS ( 200 )
+#define NUM_DOCS ( 500 )
+queries took a total of 49954 μs
+queries took a total of 47778 μs                             
+queries took a total of 47100 μs
+queries took a total of 48634 μs
 
-Note: fairly consistent 10% gain from the aatree.
+
+--------------
+
+Thoughts & Theories:
+Interesting results despite the simple testing methods. This will need further testing with a much wider range of parameters.
+Initial testing has however already demonstrated that the different implementations scale very differently
+depending on parameter weights. The pure tree implementation (A) pulls ahead by a mile with a large number of items - 
+however, the map implementation (B), seems to show its strength with smaller sets. 
+The result make sense, given that a BST is generally a superior structure of choice for accessing "the needle in the haystack".
+As the number of buckets in a map increase, the average access time gets worse in sync.
+
+Conclusion:
+* Further, more sophisticated testing needed.
+* Assert_index is not an ideal testing ground for any method, and as soon as the parser is implemented, 
+the implementations should be compared using real; as opposed to randomly generated, data.
 
 */

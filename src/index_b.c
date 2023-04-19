@@ -9,27 +9,19 @@
 // #include <stdio.h> -- included through common.h
 // #include <stdlib.h> -- included through printing.h
 
-
-#define P_LEFT     1
-#define P_RIGHT    2
-#define T_OR       3
-#define T_AND      4
-#define T_ANDNOT   5
-
-
 typedef struct index {
-    map_t *indexed_words;       /* map containing all i_word_t within the index. Key = "<word>" */
+    map_t   *i_words;      /* set containing all i_word_t within the index */
 } index_t;
 
-typedef struct i_word {
-    set_t *paths_with_word;     /* set of all i_path_t that contains this word */
-    char  *word;
-} i_word_t;
-
 typedef struct i_path {
-    set_t *words_in_file;       /* set of all i_word_t that is contained within the file at this path */
-    char  *path;
+    char    *path;               
+    set_t   *i_words_at_path;
 } i_path_t;
+
+typedef struct i_word {
+    char    *word;
+    set_t   *i_paths_with_word;
+} i_word_t;
 
 
 /* --- DEBUGGING TOOLS --- */
@@ -69,7 +61,11 @@ static void print_results(list_t *results, list_t *query) {
 }
 
 
-/* --- COMPARE FUNCTIONS --- */
+/* --- COMPARE | HASH FUNCTIONS --- */
+
+unsigned long hash_i_word_string(i_word_t *i_word) {
+    return hash_string(i_word->word);
+}
 
 /* compares two i_path_t objects by their ->path */
 int compare_i_paths_by_path(i_path_t *a, i_path_t *b) {
@@ -77,21 +73,37 @@ int compare_i_paths_by_path(i_path_t *a, i_path_t *b) {
 }
 
 /* compares two i_word_t objects by their ->word */
-int compare_i_words_by_word(i_word_t *a, i_word_t *b) {
+int compare_i_words_by_string(i_word_t *a, i_word_t *b) {
     return strcmp(a->word, b->word);
 }
-
 
 /* compares two i_word_t objects by how many files they appear in */
 int compare_i_words_by_n_occurances(i_word_t *a, i_word_t *b) {
     return (
-        set_size((set_t*)(a)->paths_with_word)
-        - set_size((set_t*)(b)->paths_with_word)
+        set_size((set_t*)(a)->i_paths_with_word)
+        - set_size((set_t*)(b)->i_paths_with_word)
     );
 }
 
 int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
     return (a->score - b->score);
+}
+
+
+/* --- CREATION, DESTRUCTION --- */
+
+/* frees the indexed word, it's word string, and set. Does not affect set content. */
+static void destroy_indexed_word(i_word_t *indexed_word) {
+    free(indexed_word->word);
+    set_destroy(indexed_word->i_paths_with_word);
+    free(indexed_word);
+}
+
+/* frees the indexed file, it's path string, and set. Does not affect set content. */
+static void destroy_indexed_file(i_path_t *indexed_file) {
+    free(indexed_file->path);
+    set_destroy(indexed_file->i_words_at_path);
+    free(indexed_file);
 }
 
 index_t *index_create() {
@@ -103,9 +115,9 @@ index_t *index_create() {
     }
 
     /* create the index set with a specialized compare func for the words */
-    new_index->indexed_words = map_create((cmpfunc_t)strcmp, hash_string);
+    new_index->i_words = map_create((cmpfunc_t)strcmp, hash_string);
 
-    if (new_index->indexed_words == NULL) {
+    if (new_index->i_words == NULL) {
         ERROR_PRINT("out of memory");
         return NULL;
     }
@@ -114,37 +126,116 @@ index_t *index_create() {
 }
 
 void index_destroy(index_t *index) {
-    return;
+    // set_iter_t *word_iter = set_createiter(index->i_words);
+
+    // if (word_iter == NULL) {
+    //     ERROR_PRINT("out of memory");
+    // }
+
+    // /* free the content of all i_words */
+    // i_word_t *indexed_word;
+    // while ((indexed_word = (i_word_t*)set_next(word_iter)) != NULL) {
+    //     destroy_indexed_word(indexed_word);
+    // }
+
+    // /* destroy iterators and the data structure shells themselves */
+    // set_destroyiter(word_iter);
+    // map_destroy(index->i_words);
+
+
+    /* lastly, free the index. All memory should now be reclaimed by the system. */
+    free(index);
+
+    if (PINFO) printf("cleanup done\n");
 }
 
+/*
+ * initialize a struct i_path_t using the given path.
+ * set indexed_file->path to a copy of the given path.
+ * creates an empty set @ indexed_file->words, with cmpfunc_t := compare_i_words_by_string
+ */
+static i_path_t *create_i_path(char *path) {
+    i_path_t *new_i_path = malloc(sizeof(i_path_t));
+    if (new_i_path == NULL) {
+        return NULL;
+    }
+
+    new_i_path->path = copy_string(path);
+    if (new_i_path->path == NULL) {
+        return NULL;
+    }
+
+    /* create an empty set to store indexed words */
+    new_i_path->i_words_at_path = set_create((cmpfunc_t)compare_i_words_by_string);
+    if (new_i_path->i_words_at_path == NULL) {
+        return NULL;
+    }
+
+    return new_i_path;
+}
+
+/*
+ * creates a new i_word_t. Copies the given word, sets a pointer to the copy @ ->word,
+ * creates an empty set @ ->i_paths_with_word, with cmpfunc_t := compare_i_paths_by_path
+ */
+static i_word_t *create_i_word(char *word) {
+    i_word_t *new_i_word = malloc(sizeof(i_word_t));
+    char *word_cpy = copy_string(word);
+
+    if (new_i_word == NULL || word_cpy == NULL) {
+        ERROR_PRINT("out of memory");
+        return NULL;
+    }
+
+    new_i_word->word = word_cpy;
+    new_i_word->i_paths_with_word = set_create((cmpfunc_t)compare_i_paths_by_path);
+
+    if (new_i_word->word == NULL || new_i_word->i_paths_with_word == NULL) {
+        ERROR_PRINT("out of memory");
+        return NULL;
+    }
+
+    return new_i_word;
+}
+
+
 void index_addpath(index_t *index, char *path, list_t *words) {
-    /* create a set to contain string pointers */
-    set_t *words_at_path = set_create((cmpfunc_t)strcmp);
-
-    char *path_cpy = strdup(path);
-
-    /* iterate over words from file @ path */
+    /* i_path_t to store the path + words currently being indexed */
+    i_path_t *new_i_path = create_i_path(path);
     list_iter_t *words_iter = list_createiter(words);
+    char *curr_word;
 
-    while (list_hasnext(words_iter)) {
-        char *word = list_next(words_iter);
-        i_word_t *paths_with_word = map_get(index->indexed_words, word);
+    /* iterate over the given list of words */
+    while ((curr_word = list_next(words_iter)) != NULL) {
+        /* check if index map contains the word already */
+        i_word_t *curr_i_word = map_get(index->i_words, (void *)curr_word);
 
-        /* if the word is not in the index already, add it */
-        if (paths_with_word == NULL) {
-            paths_with_word = set_create((cmpfunc_t)strcmp);
-            map_put(index->indexed_words, word, paths_with_word);
+        if (curr_i_word == NULL) {
+            /* word is not in index, create it */
+            curr_i_word = create_i_word(curr_word);
+            map_put(index->i_words, curr_i_word->word, curr_i_word);
         }
 
-        /* add the path to the words set of paths 
-         * this call assumes set will not add duplicates. otherwise set_contains() should be called first. */
-        set_add(paths_with_word, path_cpy);
+        /* add a pointer to curr_i_path to the words set of i_paths. */
+        set_add(curr_i_word->i_paths_with_word, new_i_path);
+
+        /* add a pointer to curr_i_word to the paths set of i_words. */
+        set_add(new_i_path->i_words_at_path, curr_i_word);
+
+        /* this strategy should ensure each string, be it for file or path, 
+         * is only ever stored once in memory. 
+         * All files containing a word, will share the same i_word pointer, 
+         * and vice versa for i_words. */
+        free(curr_word);
     }
+    free(path);
 
     /* cleanup */
     list_destroyiter(words_iter);
-    free(path);
 }
+
+
+/* --- query interaction --- */
 
 void *respond_with_errmsg(char *msg, char **dest) {
     *dest = copy_string(msg);
@@ -156,65 +247,60 @@ void *respond_with_errmsg(char *msg, char **dest) {
  */
 static query_result_t *create_query_result(char *path, double score) {
     query_result_t *result = malloc(sizeof(query_result_t));
+
     if (result == NULL) {
         ERROR_PRINT("out of memory");
         return NULL;
     }
-
-    result->path = path;
+    result->path = copy_string(path);
     result->score = score;
 
     return result;
 }
 
-static int is_special_term(char *term) {
-    if (strcmp(term, "(") == 0) {
-        return P_LEFT;
-    } else if (strcmp(term, ")") == 0) {
-        return P_RIGHT;
-    } else if (strcmp(term, "OR") == 0) {
-        return T_OR;
-    } else if (strcmp(term, "AND") == 0) {
-        return T_AND;
-    } else if (strcmp(term, "ANDNOT") == 0) {
-        return T_ANDNOT;
-    }
-    return 0;
-}
-
-/* split a query into parsable subqueries */
-static list_t *parse_query(index_t *index, list_t *query, char **errmsg) {
-    list_iter_t *query_iter = list_createiter(query);
-    int n_terms = list_size(query);
-
-    int special_term;
-    char *term;
-
-    while (list_hasnext(query_iter)) {
-        special_term = is_special_term(term);
-        if (!special_term && n_terms == 1) {
-            return;
-        }
-    }
-}
-
-
 list_t *index_query(index_t *index, list_t *query, char **errmsg) {
-    unsigned long long t_start;
-    if (PTIME) t_start = gettime();
-
     list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
-    list_iter_t *query_iter = list_createiter(query);
 
+    list_iter_t *query_iter = list_createiter(query);
     int n_terms = list_size(query);
 
     if (query_iter == NULL || results == NULL) {
         return respond_with_errmsg("out of memory", errmsg);
     }
 
+    if (n_terms == 1) {
+        /* get word from map. if null, return empty list */
+
+        i_word_t *found_i_word = map_get(index->i_words, list_next(query_iter));
+        list_destroyiter(query_iter);
+
+        if (found_i_word != NULL) {
+            set_iter_t *path_iter = set_createiter(found_i_word->i_paths_with_word);
+            i_path_t *curr_i_path;
+            double score = 0.0;
+
+            /* add all results to the list */
+            while ((curr_i_path = set_next(path_iter)) != NULL) {
+                score += 0.15;
+                list_addlast(results, create_query_result(curr_i_path->path, score));
+            }
+            set_destroyiter(path_iter);
+
+            /* sort results by query score */
+            list_sort(results);
+        }
+        return results;
+    }
     return respond_with_errmsg("silence warning", errmsg);
 }
 
+// if (PINFO) {
+//     print_results(results, query);
+// }
+// if (PTIME) {
+//     unsigned long long t_end = gettime();
+//     printf("query took %llu μs\n", t_end-t_start);
+// }
 
 /* make clean && make assert_index && lldb assert_index */
 /* make clean && make indexer && ./indexer data/cacm/ */

@@ -234,7 +234,7 @@ void index_addpath(index_t *index, char *path, list_t *words) {
     /* iterate over all words in the provided list */
     void *elem;
     while ((elem = list_next(words_iter)) != NULL) {
-        /* create a new indexed word */
+        /* create a tmp indexed word */
         i_word_t *tmp_i_word = create_tmp_indexed_word((char*)elem);
 
         /* add to the main set of indexed words. Store return to determine whether word is duplicate. */

@@ -7,7 +7,7 @@
 LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
 SET_SRC=rbtreeset.c
-INDEX_SRC=index_c.c
+INDEX_SRC=index_A.c
 
 # Directories
 INCLUDE_DIR=include
@@ -28,19 +28,19 @@ ASSERT_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(ASSERT_SRC))
 # Find all header files
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
-# Override this to remove all printing
-DEBUG_FLAGS = -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
-OPTIM_FLAGS = -O2 -g
+
+# FLAGS = -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
+FLAGS = -O2 -g
 
 .PHONY=all
 
 all: indexer assert_index
 
 indexer: $(INDEXER_SRC) $(HEADERS) Makefile
-	gcc -Wall -o $@ -D_GNU_SOURCE -D_REENTRANT $(INDEXER_SRC) -I$(INCLUDE_DIR) -lm -lpthread $(DEBUG_FLAGS)
+	gcc -Wall -o $@ -D_GNU_SOURCE -D_REENTRANT $(INDEXER_SRC) -I$(INCLUDE_DIR) -lm -lpthread $(FLAGS)
 
 assert_index: $(ASSERT_SRC) $(HEADERS) Makefile
-	gcc -o $@ $(ASSERT_SRC) -I$(INCLUDE_DIR) -lm $(DEBUG_FLAGS)
+	gcc -o $@ $(ASSERT_SRC) -I$(INCLUDE_DIR) -lm $(FLAGS)
 
 clean:
 	rm -f *~ *.o *.exe *.out *.prof *.stackdump indexer assert_index

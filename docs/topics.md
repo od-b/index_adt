@@ -36,12 +36,14 @@
 
 
 # Discussion
+ * Attempting an approach vs researching the 'correct way'
+ * Post implementation thoughts: How i did it  VS  how its typically done
  * why the results are like this -- map / tree fundamental differences
  * no reference point -> degree of uncertainty regarding the validity of results
 
 
 # Conclusion
- * Difficult to feel confident about any implementation without feedback and proper reference points
+ * Difficult to feel confident about any implementation without proper feedback & reference points
  * Implementation: What is good, what is bad
 
 

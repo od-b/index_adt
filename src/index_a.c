@@ -8,26 +8,32 @@
 // #include <stdio.h> -- included through common.h
 // #include <stdlib.h> -- included through printing.h
 
-typedef struct index {
-    set_t  *indexed_words;      /* set containing all i_word_t within the index */
-    list_t  *indexed_files;      /* list to store all indexed paths. mainly used for freeing memory. */
-} index_t;
+/*
+ * Implementation of index relying almost entirely on a BST-based set
+*/
 
-typedef struct indexed_file {
+/* indexed path. Contains a char* path, and a set_t *i_words_at_path */
+typedef struct i_path {
     char    *path;               
-    set_t  *words;
-} i_file_t;
+    set_t   *i_words_at_path;    /* set of *to all words (i_word_t) contained in the file at path location  */
+} i_path_t;
 
-typedef struct indexed_word {
+/* indexed word. Contains a char* word, and a set_t *i_paths_with_word */
+typedef struct i_word {
     char    *word;
-    set_t  *files_with_word;
+    set_t   *i_paths_with_word;  /* set of *to all i_path_t which contain this i_word */
 } i_word_t;
 
+typedef struct index {
+    set_t    *i_words;       /* set containing all i_word_t within the index */
+    i_word_t *search_word;   /* variable i_word_t for searching purposes */
+} index_t;
 
 /* --- DEBUGGING TOOLS --- */
 
 #define PINFO  0
 #define PTIME  0
+
 
 static void print_query_string(list_t *query) {
     list_iter_t *query_iter = list_createiter(query);
@@ -63,8 +69,8 @@ static void print_results(list_t *results, list_t *query) {
 
 /* --- COMPARE FUNCTIONS --- */
 
-/* compares two i_file_t objects by their ->path */
-int compare_i_files_by_path(i_file_t *a, i_file_t *b) {
+/* compares two i_path_t objects by their ->path */
+int compare_i_paths_by_string(i_path_t *a, i_path_t *b) {
     return strcmp(a->path, b->path);
 }
 
@@ -76,8 +82,8 @@ int compare_i_words_by_string(i_word_t *a, i_word_t *b) {
 /* compares two i_word_t objects by how many files they appear in */
 int compare_i_words_by_n_occurances(i_word_t *a, i_word_t *b) {
     return (
-        set_size((set_t*)(a)->files_with_word)
-        - set_size((set_t*)(b)->files_with_word)
+        set_size((set_t*)(a)->i_paths_with_word)
+        - set_size((set_t*)(b)->i_paths_with_word)
     );
 }
 
@@ -89,17 +95,17 @@ int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
 /* --- CREATION, DESTRUCTION --- */
 
 /* frees the indexed word, it's word string, and set. Does not affect set content. */
-static void destroy_indexed_word(i_word_t *indexed_word) {
-    free(indexed_word->word);
-    set_destroy(indexed_word->files_with_word);
-    free(indexed_word);
+static void destroy_i_word(i_word_t *i_word) {
+    free(i_word->word);
+    set_destroy(i_word->i_paths_with_word);
+    free(i_word);
 }
 
 /* frees the indexed file, it's path string, and set. Does not affect set content. */
-static void destroy_indexed_file(i_file_t *indexed_file) {
-    free(indexed_file->path);
-    set_destroy(indexed_file->words);
-    free(indexed_file);
+static void destroy_i_path(i_path_t *i_path) {
+    free(i_path->path);
+    set_destroy(i_path->i_words_at_path);
+    free(i_path);
 }
 
 index_t *index_create() {
@@ -111,173 +117,165 @@ index_t *index_create() {
     }
 
     /* create the index set with a specialized compare func for the words */
-    new_index->indexed_words = set_create((cmpfunc_t)compare_i_words_by_string);
-    new_index->indexed_files = list_create((cmpfunc_t)compare_i_files_by_path);
+    new_index->i_words = set_create((cmpfunc_t)compare_i_words_by_string);
+    new_index->search_word = malloc(sizeof(i_word_t));
 
-    if (new_index->indexed_words == NULL || new_index->indexed_files == NULL) {
+    if (new_index->i_words == NULL || new_index->search_word == NULL) {
         ERROR_PRINT("out of memory");
         return NULL;
     }
+
+    new_index->search_word->word = NULL;
+    new_index->search_word->i_paths_with_word = NULL;
 
     return new_index;
 }
 
+
 void index_destroy(index_t *index) {
-    set_iter_t *word_iter = set_createiter(index->indexed_words);
-    list_iter_t *file_iter = list_createiter(index->indexed_files);
+    i_path_t *curr_i_path;
+    i_word_t *curr_i_word;
+    set_iter_t *i_path_iter;
+    set_iter_t *i_word_iter;
 
-    if (word_iter == NULL || file_iter == NULL) {
-        ERROR_PRINT("out of memory");
+    /* create a set of all paths to avoid attempting to free paths multiple times */
+    set_t *all_i_paths = set_create((cmpfunc_t)compare_i_paths_by_string);
+
+    i_word_iter = set_createiter(index->i_words);
+
+    while ((curr_i_word = set_next(i_word_iter)) != NULL) {
+        /* iterate over the indexed words set of paths */
+        i_path_iter = set_createiter(curr_i_word->i_paths_with_word);
+
+        /* add all paths to the newly created set of paths */
+        while ((curr_i_path = set_next(i_path_iter)) != NULL) {
+            set_add(all_i_paths, curr_i_path);
+        }
+        /* cleanup iter, the nested set and word string */
+        set_destroyiter(i_path_iter);
+        set_destroy(curr_i_word->i_paths_with_word);
+        free(curr_i_word->word);
+        /* free the i_word struct */
+        free(curr_i_word);
     }
 
-    /* free the content of all indexed_words */
-    i_word_t *indexed_word;
-    while ((indexed_word = (i_word_t*)set_next(word_iter)) != NULL) {
-        destroy_indexed_word(indexed_word);
+    /* destroy iter, then the set of i_words */
+    set_destroyiter(i_word_iter);
+    set_destroy(index->i_words);
+
+    /* iterate over the set of all paths, freeing each paths' string and set */
+    i_path_iter = set_createiter(all_i_paths);
+    while ((curr_i_path = set_next(i_path_iter)) != NULL) {
+        free(curr_i_path->path);
+        set_destroy(curr_i_path->i_words_at_path);
+        /* free the i_path struct */
+        free(curr_i_path);
     }
 
-    /* free the content of all indexed_files  */
-    i_file_t *indexed_file;
-    while ((indexed_file = (i_file_t*)list_next(file_iter)) != NULL) {
-        destroy_indexed_file(indexed_file);
-    }
+    /* free the iter and set of all paths */
+    set_destroyiter(i_path_iter);
+    set_destroy(all_i_paths);
 
-    /* destroy iterators and the data structure shells themselves */
-    set_destroyiter(word_iter);
-    set_destroy(index->indexed_words);
-
-    list_destroyiter(file_iter);
-    list_destroy(index->indexed_files);
-
-
-    /* lastly, free the index. All memory should now be reclaimed by the system. */
+    /*
+     * check: All word and path strings destroyed.
+     * check: All i_word_t and i_path_t structs destroyed
+     * check: All nested sets contained within i_word/path_t destroyed
+     * check: Main set of i_words destroyed
+     * Lastly, free the search_word, then the index struct itself.
+     */
+    free(index->search_word);
     free(index);
-
-    if (PINFO) printf("cleanup done\n");
+    DEBUG_PRINT("All memory allocated by the index is now freed\n");
 }
 
 /*
- * initialize a struct i_file_t using the given path.
- * set indexed_file->path to a copy of the given path.
- * creates an empty set @ indexed_file->words, with cmpfunc_t := compare_i_words_by_string
+ * initialize a struct i_path_t using the given path.
+ * set i_path->path to a copy of the given path.
+ * creates an empty set @ i_path->i_words_at_path, with cmpfunc_t := compare_i_words_by_string
  */
-static i_file_t *create_indexed_file(char *path) {
-    i_file_t *new_indexed_path = malloc(sizeof(i_file_t));
-    if (new_indexed_path == NULL) {
+static i_path_t *create_i_path(char *path) {
+    i_path_t *new_i_path = malloc(sizeof(i_path_t));
+    if (new_i_path == NULL) {
         return NULL;
     }
 
-    new_indexed_path->path = copy_string(path);
-    if (new_indexed_path->path == NULL) {
+    new_i_path->path = copy_string(path);
+    if (new_i_path->path == NULL) {
         return NULL;
     }
 
-    /* create an empty set to store indexed words */
-    new_indexed_path->words = set_create((cmpfunc_t)compare_i_words_by_string);
-    if (new_indexed_path->words == NULL) {
+    /* create an empty set to store indexed paths */
+    new_i_path->i_words_at_path = set_create((cmpfunc_t)compare_i_words_by_string);
+    if (new_i_path->i_words_at_path == NULL) {
         return NULL;
     }
 
-    return new_indexed_path;
+    return new_i_path;
 }
 
 /* 
- * initializes a new indexed word.
- * Does not copy the word, nor create the files_with_word attribute.
+ * Search for an indexed word within index->i_words. If it does not exist, it will be added and initialized.
+ * returns the existing, or newly created, i_word_t.
  */
-static i_word_t *create_tmp_indexed_word(char *word) {
-    i_word_t *tmp_word = malloc(sizeof(i_word_t));
-    if (tmp_word == NULL) {
-        ERROR_PRINT("out of memory");
-        return NULL;
-    }
+static i_word_t *get_or_add(index_t *index, char *word) {
+    index->search_word->word = word;
 
-    tmp_word->word = word;
-    tmp_word->files_with_word = NULL;
-    return tmp_word;
+    /* try to add the i_word, then compare to determine result */
+    i_word_t *i_word = set_put(index->i_words, index->search_word);
+
+    if (i_word->i_paths_with_word == NULL) {
+        /* word was not a duplicate. Initialize the i_word. */
+        i_word->word = copy_string(word);
+        i_word->i_paths_with_word = set_create((cmpfunc_t)compare_i_paths_by_string);
+
+        /* Since the search word was added, create a new i_word for searching. */
+        index->search_word = malloc(sizeof(i_word_t));
+
+        if (i_word->word == NULL || i_word->i_paths_with_word == NULL || index->search_word == NULL) {
+            ERROR_PRINT("out of memory");
+            return NULL;
+        }
+        index->search_word->i_paths_with_word = NULL;
+    }
+    index->search_word->word = NULL;
+    return i_word;
 }
 
 /*
- * initialize the attributes of a "temp" i_word_t.
- * replaces its ->word with a permanent copy of that word. the original word is unchanged.
- * creates an empty ->files_with_word, with cmpfunc_t := compare_i_files_by_path
+ * if a word is indexed, returns its related i_word_t. Otherwise, returns NULL. 
  */
-static void initialize_indexed_word(i_word_t *indexed_word) {
-    char *word_cpy = copy_string(indexed_word->word);
-
-    indexed_word->word = word_cpy;
-    indexed_word->files_with_word = set_create((cmpfunc_t)compare_i_files_by_path);
-
-    if (indexed_word->word == NULL || indexed_word->files_with_word == NULL) {
-        ERROR_PRINT("out of memory");
-    }
-
+static i_word_t *index_search(index_t *index, char *word) {
+    index->search_word->word = word;
+    i_word_t *search_result = set_get(index->i_words, index->search_word);
+    index->search_word->word = NULL;
+    return search_result;
 }
 
 void index_addpath(index_t *index, char *path, list_t *words) {
     list_iter_t *words_iter = list_createiter(words);
 
-    /* i_file_t to store the path + words currently being indexed */
-    i_file_t *new_i_file = create_indexed_file(path);
-    free(path);
+    /* i_path_t to store the path + words currently being indexed */
+    i_path_t *new_i_path = create_i_path(path);
 
-    /* add newly indexed file to the centralized list of indexed files */
-    int8_t list_add_ok = list_addlast(index->indexed_files, new_i_file);
-
-    if (words_iter == NULL || new_i_file == NULL || !list_add_ok) {
+    if (words_iter == NULL || new_i_path == NULL) {
         ERROR_PRINT("out of memory");
     }
-
-    int n_dup_words = 0;
-    int n_new_words = 0;
 
     /* iterate over all words in the provided list */
     void *elem;
     while ((elem = list_next(words_iter)) != NULL) {
-        /* create a tmp indexed word */
-        i_word_t *tmp_i_word = create_tmp_indexed_word((char*)elem);
-
-        /* add to the main set of indexed words. Store return to determine whether word is duplicate. */
-        i_word_t *curr_i_word = (i_word_t*)set_put(index->indexed_words, tmp_i_word);
-
-        /* check whether word is a duplicate by comparing adress to the temp word */
-        if (&curr_i_word->word != &tmp_i_word->word) {
-            if (PINFO) {
-                n_dup_words += 1;
-                // printf("DUP: %s\n", curr_i_word->word);
-            }
-            /* word is duplicate. free the struct. */
-            free(tmp_i_word);
-        } else {
-            if (PINFO) {
-                n_new_words += 1;
-                // printf("new: %s\n", curr_i_word->word);
-            }
-            /* not a duplicate, finalize initialization of the tmp word, making it permanent. */
-            initialize_indexed_word(tmp_i_word);
-        }
-
-        /* free word from list */
+        i_word_t *curr_i_word = get_or_add(index, elem);
         free(elem);
 
-        /* 
-         * curr_i_word is now either the existing indexed word, or the newly created one.
-        */
-
         /* add the file index to the current index word */
-        set_add(curr_i_word->files_with_word, new_i_file);
+        set_add(curr_i_word->i_paths_with_word, new_i_path);
 
         /* add word to the file index */
-        set_add(new_i_file->words, curr_i_word);
-    }
-
-    if (PINFO) {
-        printf("added file with path: '%s'\n", new_i_file->path);
-        printf("  new words in file: %d\n", n_new_words);
-        printf("  duplicate/common words in file: %d\n", n_dup_words);
+        set_add(new_i_path->i_words_at_path, curr_i_word);
     }
 
     /* cleanup */
+    free(path);
     list_destroyiter(words_iter);
 }
 
@@ -303,39 +301,26 @@ static query_result_t *create_query_result(char *path, double score) {
 }
 
 static void add_query_results(index_t *index, list_t *results, char *query_word) {
-    i_word_t *search_word = create_tmp_indexed_word(query_word);
-    i_word_t *indexed_word = set_get(index->indexed_words, search_word);
-    free(search_word);
+    i_word_t *search_result = index_search(index, query_word);
 
-    if (indexed_word == NULL) {
-        /* no files with the word */
+    if (search_result == NULL) {
         return;
     }
 
-    /* iterate over files that contain indexed word */
-    set_iter_t *file_iter = set_createiter(indexed_word->files_with_word);
+    /* iterate over i_paths that contain indexed word */
+    set_iter_t *file_iter = set_createiter(search_result->i_paths_with_word);
 
-    i_file_t *indexed_file;
+    i_path_t *i_path;
     double score = 0.0;
-    while ((indexed_file = set_next(file_iter))) {
+    while ((i_path = set_next(file_iter))) {
         score += 0.1;
-        list_addlast(results, create_query_result(indexed_file->path, score));
+        list_addlast(results, create_query_result(i_path->path, score));
     }
-
     set_destroyiter(file_iter);
 }
 
 list_t *index_query(index_t *index, list_t *query, char **errmsg) {
-    unsigned long long t_start;
-    if (PTIME) t_start = gettime();
-
     list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
-
-    // if (PINFO) {
-    //     printf("query string = ");
-    //     print_query_string(query);
-    //     // return results;
-    // }
 
     list_iter_t *query_iter = list_createiter(query);
     int n_terms = list_size(query);
@@ -348,14 +333,6 @@ list_t *index_query(index_t *index, list_t *query, char **errmsg) {
         /* TODO: validate search word */
         add_query_results(index, results, list_next(query_iter));
         list_destroyiter(query_iter);
-
-        if (PINFO) {
-            print_results(results, query);
-        }
-        if (PTIME) {
-            unsigned long long t_end = gettime();
-            printf("query took %llu μs\n", t_end-t_start);
-        }
         return results;
     }
     return respond_with_errmsg("silence warning", errmsg);

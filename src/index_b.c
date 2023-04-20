@@ -9,6 +9,10 @@
 // #include <stdio.h> -- included through common.h
 // #include <stdlib.h> -- included through printing.h
 
+/*
+ * Fairly similar implementation as index_A, but with a map instead of tree at its core
+*/
+
 typedef struct index {
     map_t   *i_words;      /* set containing all i_word_t within the index */
 } index_t;

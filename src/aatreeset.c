@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
+
 #define DEBUG_CHECKSET 0
 
 struct treenode;

@@ -7,7 +7,7 @@
 LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
 SET_SRC=rbtreeset.c
-INDEX_SRC=index_a.c
+INDEX_SRC=index_tree.c
 
 # Directories
 INCLUDE_DIR=include

@@ -9,7 +9,7 @@
 // #include <stdlib.h> -- included through printing.h
 
 /*
- * Implementation of index relying almost entirely on a BST-based set
+ * Implementation of an index ADT with a BST-based set at its core
 */
 
 /* indexed path. Contains a char* path, and a set_t *i_words_at_path */
@@ -26,7 +26,7 @@ typedef struct i_word {
 
 typedef struct index {
     set_t    *i_words;       /* set containing all i_word_t within the index */
-    i_word_t *search_word;   /* variable i_word_t for searching purposes */
+    i_word_t *search_word;   /* variable i_word_t for internal searching purposes */
 } index_t;
 
 /* --- DEBUGGING TOOLS --- */
@@ -130,7 +130,6 @@ index_t *index_create() {
 
     return new_index;
 }
-
 
 void index_destroy(index_t *index) {
     i_path_t *curr_i_path;
@@ -335,7 +334,7 @@ list_t *index_query(index_t *index, list_t *query, char **errmsg) {
         list_destroyiter(query_iter);
         return results;
     }
-    return respond_with_errmsg("silence warning", errmsg);
+    return respond_with_errmsg("n_terms > 1", errmsg);
 }
 
 

@@ -10,23 +10,24 @@
 // #include <stdlib.h> -- included through printing.h
 
 /*
- * Fairly similar implementation as index_A, but with a map instead of tree at its core
+ * Fairly similar implementation as index_tree, but with a map as the central structure
 */
+
+/* indexed path. Contains a char* path, and a set_t *i_words_at_path */
+typedef struct i_path {
+    char    *path;               
+    set_t   *i_words_at_path;    /* set of *to all words (i_word_t) contained in the file at path location  */
+} i_path_t;
+
+/* indexed word. Contains a char* word, and a set_t *i_paths_with_word */
+typedef struct i_word {
+    char    *word;
+    set_t   *i_paths_with_word;  /* set of *to all i_path_t which contain this i_word */
+} i_word_t;
 
 typedef struct index {
     map_t   *i_words;      /* set containing all i_word_t within the index */
 } index_t;
-
-typedef struct i_path {
-    char    *path;               
-    set_t   *i_words_at_path;
-} i_path_t;
-
-typedef struct i_word {
-    char    *word;
-    set_t   *i_paths_with_word;
-} i_word_t;
-
 
 /* --- DEBUGGING TOOLS --- */
 
@@ -201,7 +202,6 @@ static i_word_t *create_i_word(char *word) {
 
     return new_i_word;
 }
-
 
 void index_addpath(index_t *index, char *path, list_t *words) {
     /* i_path_t to store the path + words currently being indexed */

@@ -1,9 +1,11 @@
 # Rules
 
-query   ::= andterm | andterm "ANDNOT" query
-andterm ::= orterm | orterm "AND" andterm
-orterm  ::= term | term "OR" orterm
-term    ::= "(" query ")" | <\word>
+query   ::=       andterm  |  andterm "ANDNOT" query
+andterm ::=        orterm  |  orterm "AND" andterm
+orterm  ::=          term  |  term "OR" orterm
+term    ::= "(" query ")"  |  <word>
+
+
 
 * Logical connectives must contain exactly one adjacent search word or bracket.
 * If more than one search word is to be included, they must be connected with one of the logical connectives.
@@ -15,6 +17,9 @@ term    ::= "(" query ")" | <\word>
 * There may only be __one__ ANDNOT connective within each __individual__ bracket.  
   This rule does not affect search capabilities. See logical equivalence examples 2.
 
+pre_process = '(sand and (Sand OR sAND)) ANDNOT bAND'>
+
+post_process = ['(', 'sand', 'OR', 'and', '(', 'sand', 'OR', 'sand', ')', ')', 'ANDNOT', 'band']
 
 ### Logical equivalence examples
 === is defined as logically equivalent.

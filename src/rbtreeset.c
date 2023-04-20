@@ -480,3 +480,41 @@ set_t *set_copy(set_t *set) {
 
     return copy;
 }
+
+
+/* debugging stuff */
+
+/* static void print_tree(printfunc_t printfunc, set_t *tree, treenode_t* root, int height) {
+    if (root == NULL) {
+        return;
+    }
+    height += 10;
+
+    print_tree(printfunc, tree, root->right, height);
+
+    printf("\n");
+    for (int i = 10; i < height; i++) {
+        printf(" ");
+    }
+
+    if (root == NULL) {
+        printf("NULL");
+    } else {
+        if (root->elem == NULL) {
+            printf(BLKB "NIL" reset "");
+        } else {
+            char *elem_str = printfunc(root->elem);
+            if (root->black) {
+                printf(BLKHB " %s " reset "", elem_str);
+            } else {
+                printf(REDB " %s " reset "", elem_str);
+            }
+        }
+    }
+
+    print_tree(printfunc, tree, root->left, height);
+}
+
+void print_rbtreeset(set_t *set, printfunc_t printfunc) {
+    print_tree(printfunc, set, set->root, 0);
+} */

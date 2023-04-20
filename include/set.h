@@ -104,4 +104,9 @@ int set_hasnext(set_iter_t *iter);
  */
 void *set_next(set_iter_t *iter);
 
+/* debugging */
+// typedef char *(*printfunc_t)(void *);
+// void print_rbtreeset(set_t *set, printfunc_t printfunc_t);
+
+
 #endif

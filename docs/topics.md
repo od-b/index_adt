@@ -17,16 +17,17 @@
 * differences between implementations
 * changes to design during development
 * building the index: add_path, (more duplicates == fewer i_word_t mallocs)
-* parser: limitiations, rules, requirements, implementation
+* parser: goals, limitiations, rules, requirements, logical equivalences, implementation
+* result score: tf-idf
 
 
 # Experiments
  * intro: comparing the implemented indexes
  * initial, simple experiments
  * advanced comparisons, building | accessing: 
-    * large sets of files
-    * small sets of files
-    * big files vs small files?
+  * large sets of files
+  * small sets of files
+  * big files vs small files?
 
 
 # Results

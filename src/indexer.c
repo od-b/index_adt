@@ -17,6 +17,7 @@
 
 
 #define PORT_NUM 8080
+#define PINFO 1
 
 static pthread_mutex_t query_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -24,7 +25,7 @@ static char *root_dir;
 static index_t *idx;
 
 static void print_title(FILE *, char *);
-static void print_querystring(FILE *, char *);
+static void print_processed_querystring(FILE *, char *);
 static void run_query(FILE *, char *);
 
 struct tag_mapping {
@@ -36,7 +37,7 @@ const struct tag_mapping
 
 tag_mappings[] = {
     { "title",   print_title },
-    { "query",   print_querystring },
+    { "query",   print_processed_querystring },
     { "results", run_query }
 };
 
@@ -172,6 +173,8 @@ static list_t *preprocess_query(char *query) {
                 *c = tolower(*c);
             }
 
+            /* Note to self: all tokens will be lowercase */
+
             /* Adjacent words */
             if (prev != NULL && !is_reserved_word(prev)) {
                 list_addlast(processed, strdup("OR"));
@@ -214,6 +217,37 @@ static void send_results(FILE *f, char *query, list_t *results) {
     fprintf(f, "</ol>\n");
 }
 
+static void _p_processed_query(char *query, list_t *tokens) {
+    /* print query, query as list && processed spaced plaintext */
+    printf("query \t\t= '%s'\n", query);
+    list_iter_t *p_process_iter = list_createiter(tokens);
+    const size_t LEN = 511;
+    char p_str[LEN], p_list_str[LEN], *term;
+    int i = 0, n = 0;
+    p_list_str[i++] = '[';
+
+    /* may the lord forgive me for what i'm about to do */
+    while ((term = list_next(p_process_iter)) != NULL) {
+        if (((n > 0) && ((p_str[n-1] != ')') && (p_str[n-1] != '(') && (term[0] != ')')))
+            || ((strcmp(term, "AND") == 0) || (strcmp(term, "OR") == 0) || (strcmp(term, "ANDNOT") == 0))) {
+            p_str[n++] = ' ';
+        }
+        p_list_str[i++] = '\'';
+        for (int j = 0; term[j] != '\0'; j++) {
+            p_list_str[i++] = p_str[n++] = term[j];
+        }
+        p_list_str[i++] = '\'';
+        if (list_hasnext(p_process_iter)) {
+            p_list_str[i++] = ',';
+            p_list_str[i++] = ' ';
+        }
+    }
+    p_list_str[i++] = ']';
+    p_list_str[i] = p_str[n] = '\0';
+    printf("plaintext \t= %s\nlist(query) =\n %s\n", p_str, p_list_str);
+    list_destroyiter(p_process_iter);
+}
+
 static void run_query(FILE *f, char *query) {
     char *errmsg;
     list_t *result;
@@ -225,6 +259,9 @@ static void run_query(FILE *f, char *query) {
     /* Don't run query if query is empty */
     if (!list_size(tokens))
         goto end;
+
+    if (PINFO)
+        _p_processed_query(query, tokens);
 
     result = index_query(idx, tokens, &errmsg);
 
@@ -250,7 +287,7 @@ end:
     }
 }
 
-static void print_querystring (FILE *fp, char *query) {
+static void print_processed_querystring(FILE *fp, char *query) {
     char *q_esc = html_escape(query);
     fprintf(fp, "%s", q_esc);
     free(q_esc);

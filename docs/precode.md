@@ -27,7 +27,7 @@ This list does not including makefile changes, or additions to common.c/h.
   * Added 'set_put()' and 'set_get()' to set.h.
     These changes are done to allow sets of structs on a more abstract basis.
     Notes, examples and detailed reasoning below.
-    Prior to development, a decision had to be made. Either alter set_contains & set_add, or expand the header.
+    Prior to development, a decision had to be made. Either alter set_contains & set_add, or expand the header. While there is an alternative three - use sets 
     Neither option is particularly attractive, however - it is the authors belief that addition is the least intrusive alternative.
   
     * set_put():

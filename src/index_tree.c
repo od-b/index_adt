@@ -323,10 +323,13 @@ static void add_query_results(index_t *index, list_t *results, char *query_word)
     set_destroyiter(file_iter);
 }
 
+
 list_t *index_query(index_t *index, list_t *query, char **errmsg) {
     list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
 
+    printf("set_size: %d\n", set_size(index->i_words));
     list_iter_t *query_iter = list_createiter(query);
+
     int n_terms = list_size(query);
 
     if (query_iter == NULL || results == NULL) {

@@ -137,8 +137,13 @@ void index_destroy(index_t *index) {
     set_iter_t *i_path_iter;
     set_iter_t *i_word_iter;
 
-    /* create a set of all paths to avoid attempting to free paths multiple times */
+    /* Seeing as the sets contain shared pointers to i_paths,
+     * create a set of all paths to avoid dismembering any set nodes */
     set_t *all_i_paths = set_create((cmpfunc_t)compare_i_paths_by_string);
+
+    if (all_i_paths == NULL) {
+        ERROR_PRINT("out of memory.");
+    }
 
     i_word_iter = set_createiter(index->i_words);
 

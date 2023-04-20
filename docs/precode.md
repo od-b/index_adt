@@ -25,20 +25,21 @@ This list does not including makefile changes, or additions to common.c/h.
 ### Logical or variable type changes / additions
 
   * Added 'set_put()' and 'set_get()' to set.h.
+    These changes are done to allow sets of structs on a more abstract basis.
+    Notes, examples and detailed reasoning below.
+    Prior to development, a decision had to be made. Either alter set_contains & set_add, or expand the header.
+    Neither option is particularly attractive, however - it is the authors belief that addition is the least intrusive alternative.
+  
     * set_put():
       Add an element. If succesful, returns value will be the given elem.
       If elem is a duplicate, returns the duplicate elem.
+      Note: ideally, set_add() could simply be altered to prove a return value.
 
     * set_get()
       Get an existing element from the set.
       Returns NULL if set does not contain the element.
 
     **The existing sets within the precode, aatreeset.c and treeset.c, have been updated to accomodate for this change.**
-
-    These changes are mainly done to allow sets of structs, without having to repeat the process of traversing tree based sets.
-    For sets based on for example lists or dynamic arrays, this does not change anything in regards to their adding process - as these structures would rely on calling set_contains() prior to adding an item. Implementing set_get() for sets built on these data structures would simply be a slight modifications to their versions of set_contains().
-  
-    Detailed reasoning below.
 
     **Definitions**
       * 'tree' := 'binary search tree data structure'
@@ -53,14 +54,18 @@ This list does not including makefile changes, or additions to common.c/h.
       When attempting to add an item to a tree, the tree will have to traverse to the node where the item is to be added, and abort the  process of creating a new node if an equal item already exists. 
       This process simultaneously performs operations 1) and 2), defined above. This effectively eliminates the need to manually check 'tree_contains()' prior to adding an item, seeing as the logic within 'tree_contains()' and 'tree_add()' are logically identical, apart from 'tree_add()' potentially inserting a new node at the position.
 
-    **Demonstrating why 'set_add()' not including a return value is problematic:**
-      We have an arbitraty struct defined as 'A' containing two pointers, 'a' and 'b'. a holds a single pointer, b holds many pointers.
-      We have an arbitraty tree-based set defined as 'S', containing nodes with pointers to A as their item/data/value. S uses a cmpfunc that compares its elements according to *A->a.
+    **Demonstrating why 'set_add()' not including any return value is problematic:**
+      Say we have an arbitraty struct defined as 'A' containing two pointers, 'a' and 'b'. a holds a single pointer, b holds many pointers.
+      We also have a tree-based set defined as 'S', containing nodes with pointers to A as their item/data/value. S uses a cmpfunc that compares its elements according to *A->a.
 
-      We recieve item 'x' and 'y'. We want to organize x and y within an A, so that A->a = x. We create A, set A->a = x, then add it to the tree. 
+      We recieve item 'x' and 'y'. We want to store pointer to x and y within an A, so that A->a = x. We create A, set A->a = x, then add it to the tree. 
       At this point, we could check whether x was a duplicate item or not by getting the set size. However, we also want to add y to A->b.
-      **If x already existed within the tree, we have no convenient way of accessing A->b at this point.**
+      **If x already existed within the tree, we literally no way of accessing A->b at this point, unless it is stored in an additional structure. In my personal opinion, this seems like a flaw with the set.h ADT.**
 
+      Put short - in it's current state, the direct access functionality of set.h is limited to boolean return values.
+      While there could be reasons for this on a general basis - the precode we are provided do not provide any. 
+      Whether using a list, array, map or tree for the set structure - such a feature could easily be implemented.
+    
       **Solution**
         * 'set_add(A)' returns:
           1) a void pointer to the elem in the tree. This can be either the elem which was given, or the existing elem, if duplicate.

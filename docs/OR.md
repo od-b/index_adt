@@ -1,10 +1,10 @@
 ## Argument: "OR" can be completely ignored in terms of logic according to the BNF syntax
 
 From the defined grammar, we have:  
->   orterm ::= term | term "OR" orterm´  
+>   orterm ::= term | term "OR" orterm  
 
 From wikipedia.org/wiki/Backus-Naur_form, we have:  
->  ´::=´ means that the symbol on the left must be replaced with the expression on the right  
+>  "::=" means that the symbol on the left must be replaced with the expression on the right  
 
 I.e., "::=" is a denotion for left hand value assingment
 and is logically equivalent to ´x = y´ (plaintext: "x is now y"), where 'x' requires a specific type of value.  

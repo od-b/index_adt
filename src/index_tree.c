@@ -2,11 +2,22 @@
 #include "common.h"
 #include "printing.h"
 #include "set.h"
+// #include "map.h"
 // #include "list.h" -- included through index.h
 
 #include <string.h>     /* strcmp, etc */
 // #include <stdio.h> -- included through common.h
 // #include <stdlib.h> -- included through printing.h
+
+
+
+#define UNUSED(x) { (void)(x); }
+
+// #define _OR        2
+// #define _AND       3
+// #define _ANDNOT    4
+// #define _PARBEGIN  5
+// #define _PAREND    6
 
 /*
  * Implementation of an index ADT with a BST-based set at its core
@@ -14,25 +25,22 @@
 
 /* indexed path. Contains a char* path, and a set_t *i_words_at_path */
 typedef struct i_path {
-    char    *path;               
-    set_t   *i_words_at_path;    /* set of *to all words (i_word_t) contained in the file at path location  */
+    char     *path;               
+    set_t    *i_words_at_path;    /* set of *to all words (i_word_t) contained in the file at path location  */
 } i_path_t;
 
 /* indexed word. Contains a char* word, and a set_t *i_paths_with_word */
 typedef struct i_word {
-    char    *word;
-    set_t   *i_paths_with_word;  /* set of *to all i_path_t which contain this i_word */
+    char     *word;
+    set_t    *i_paths_with_word;  /* set of *to all i_path_t which contain this i_word */
+    /* set_t *contained_with? */
 } i_word_t;
 
 typedef struct index {
-    set_t    *i_words;       /* set containing all i_word_t within the index */
-    i_word_t *search_word;   /* variable i_word_t for internal searching purposes */
+    set_t    *i_words;        /* set containing all i_word_t within the index */
+    i_word_t *search_word;    /* variable i_word_t for internal searching purposes */
+    set_t    *connectives;    /* map of connectives and special words accepted by the index */
 } index_t;
-
-/* --- DEBUGGING TOOLS --- */
-
-#define PINFO  0
-#define PTIME  0
 
 
 static void print_query_string(list_t *query) {
@@ -94,23 +102,9 @@ int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
 
 /* --- CREATION, DESTRUCTION --- */
 
-/* frees the indexed word, it's word string, and set. Does not affect set content. */
-static void destroy_i_word(i_word_t *i_word) {
-    free(i_word->word);
-    set_destroy(i_word->i_paths_with_word);
-    free(i_word);
-}
-
-/* frees the indexed file, it's path string, and set. Does not affect set content. */
-static void destroy_i_path(i_path_t *i_path) {
-    free(i_path->path);
-    set_destroy(i_path->i_words_at_path);
-    free(i_path);
-}
-
 index_t *index_create() {
+    UNUSED(print_results);
     index_t *new_index = malloc(sizeof(index_t));
-
     if (new_index == NULL) {
         ERROR_PRINT("out of memory");
         return NULL;
@@ -118,15 +112,22 @@ index_t *index_create() {
 
     /* create the index set with a specialized compare func for the words */
     new_index->i_words = set_create((cmpfunc_t)compare_i_words_by_string);
+    new_index->connectives = set_create((cmpfunc_t)strcmp);
     new_index->search_word = malloc(sizeof(i_word_t));
-
-    if (new_index->i_words == NULL || new_index->search_word == NULL) {
+    if (new_index->i_words == NULL || new_index->search_word == NULL || new_index->connectives == NULL) {
         ERROR_PRINT("out of memory");
         return NULL;
     }
 
     new_index->search_word->word = NULL;
     new_index->search_word->i_paths_with_word = NULL;
+
+    set_add(new_index->connectives, strdup("OR"));
+    set_add(new_index->connectives, strdup("AND"));
+    set_add(new_index->connectives, strdup("ANDNOT"));
+    set_add(new_index->connectives, strdup("("));
+    set_add(new_index->connectives, strdup(")"));
+    /* strdup calls malloc so should technically call != NULL before adding, but it feels like overkill. */
 
     return new_index;
 }
@@ -283,11 +284,6 @@ void index_addpath(index_t *index, char *path, list_t *words) {
     list_destroyiter(words_iter);
 }
 
-void *respond_with_errmsg(char *msg, char **dest) {
-    *dest = copy_string(msg);
-    return NULL;
-}
-
 /*
  * initializes and returns a new query result 
  */
@@ -304,45 +300,130 @@ static query_result_t *create_query_result(char *path, double score) {
     return result;
 }
 
-static void add_query_results(index_t *index, list_t *results, char *query_word) {
-    i_word_t *search_result = index_search(index, query_word);
 
-    if (search_result == NULL) {
-        return;
-    }
+/* --- PARSER --- */
 
-    /* iterate over i_paths that contain indexed word */
-    set_iter_t *file_iter = set_createiter(search_result->i_paths_with_word);
+/* helper functions, or simply to improve readability (e.g. is_paranthesis) */
 
-    i_path_t *i_path;
-    double score = 0.0;
-    while ((i_path = set_next(file_iter))) {
-        score += 0.1;
-        list_addlast(results, create_query_result(i_path->path, score));
-    }
-    set_destroyiter(file_iter);
+static int_fast8_t is_paranthesis(char *connective) {
+    return (connective[1] == '\0') ? (1) : (0);
 }
 
+static void *memory_error(char **errmsg) {
+    *errmsg = "index out of memory";
+    return NULL;
+}
+
+static void *connective_error(char **errmsg) {
+    *errmsg = "logical connectives must have have adjacent words or parentheses.";
+    return NULL;
+}
+
+static void set_connective_errmsg(char *connective, char **errmsg) {
+    if (connective[1] == '\0')
+        *errmsg = "the index cannot search for parantheses.\n";
+    else
+        *errmsg = "logical connectives must have have adjacent words or parentheses.";
+}
+
+/* 
+ * Checks whether a query is syntactically valid. Returns a bool.
+ */
+static int_fast8_t is_valid_query(index_t *index, list_t *query, char **errmsg) {
+    list_iter_t *q_iter = list_createiter(query);
+    if (q_iter == NULL) {
+        memory_error(errmsg);
+        return 0;
+    }
+
+    int n_tokens = list_size(query);
+    char *curr = list_next(q_iter);
+    int curr_is_connective = set_contains(index->connectives, curr);
+
+    /* General Checks:
+     * 1: If there's exactly two words, the search is automatically invalid, as logical connectives 
+     *    require adjacent words and the indexer adds "OR"'s for us in case of '<word> <word>'.
+     * 2: A search may not begin with connectives other than an opening parantheses.
+     * 3: A search cannot be only a connective 
+     */
+    if ((n_tokens == 2) || (curr_is_connective && (curr[0] != '(')) || (n_tokens == 1 && curr_is_connective)) {
+        goto connective_error;
+    } else if (n_tokens == 1) {
+        /* if single term search, the word was already cleared through the combined check above. */
+        return 1;
+    }
+
+    /* there's atleast 3 tokens. perform checks on all. */
+    int prev_is_connective, n_par_begin = 0, n_par_end = 0;
+
+    while (list_hasnext(q_iter)) {
+        char *prev = curr;
+        curr = list_next(q_iter);
+        prev_is_connective = curr_is_connective;
+        curr_is_connective = set_contains(index->connectives, curr);
+
+        if (curr_is_connective) {
+            if (curr[0] == '(')
+                n_par_begin++;
+            else if (curr[0] == ')')
+                n_par_end++;
+            else if (prev_is_connective && !is_paranthesis(prev) && !is_paranthesis(curr))
+                /* found two connectives in a row */
+                goto connective_error;
+        }
+    }
+
+    list_destroyiter(q_iter);
+    return 1;
+
+connective_error:
+    set_connective_errmsg(curr, errmsg);
+    list_destroyiter(q_iter);
+    return 0;
+}
 
 list_t *index_query(index_t *index, list_t *query, char **errmsg) {
-    list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
-
-    printf("set_size: %d\n", set_size(index->i_words));
-    list_iter_t *query_iter = list_createiter(query);
-
-    int n_terms = list_size(query);
-
-    if (query_iter == NULL || results == NULL) {
-        return respond_with_errmsg("out of memory", errmsg);
+    if (!is_valid_query(index, query, errmsg)) {
+        return NULL;
     }
 
-    if (n_terms == 1) {
-        /* TODO: validate search word */
-        add_query_results(index, results, list_next(query_iter));
-        list_destroyiter(query_iter);
+    /* case for single term queries */
+    if (list_size(query) == 1) {
+        char *term = list_popfirst(query);
+
+        /* validate that term is not a connective */
+        if (set_contains(index->connectives, term)) {
+            return connective_error(errmsg);
+        }
+
+        list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
+        if (results == NULL) {
+            return memory_error(errmsg);
+        }
+
+        i_word_t *search_result = index_search(index, term);
+        if (search_result != NULL) {
+            /* iterate over i_paths that contain indexed word */
+            set_iter_t *file_iter = set_createiter(search_result->i_paths_with_word);
+
+            double score = 0.0;
+            i_path_t *i_path;
+            while ((i_path = set_next(file_iter)) != NULL) {
+                score += 0.1;
+                list_addlast(results, create_query_result(i_path->path, score));
+            }
+            set_destroyiter(file_iter);
+
+            if (list_size(results) != 1) {
+                /* sort results by score */
+                list_sort(results);
+            }
+        }
         return results;
     }
-    return respond_with_errmsg("n_terms > 1", errmsg);
+
+    *errmsg = "n_terms > 1";
+    return NULL;
 }
 
 

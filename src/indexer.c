@@ -211,6 +211,8 @@ static void send_results(FILE *f, char *query, list_t *results) {
         /* Free memory */
         free(tmp);
         free(res);
+
+        /* note: doesn't free path memory, so should pass original path as pointer */
     }
     list_destroyiter(it);
 
@@ -275,12 +277,12 @@ static void run_query(FILE *f, char *query) {
 
     /* Cleanup */
     iter = list_createiter(tokens);
-    while(list_hasnext(iter)) {
+    while (list_hasnext(iter)) {
         free(list_next(iter));
     }
 	
     list_destroyiter(iter);
-	
+
 end:
     if (tokens) {
         list_destroy(tokens);
@@ -416,7 +418,7 @@ static void handle_page(FILE *f, char *path, char *query) {
          * as the indexer application.
          */
         if (in_root) {
-            http_ok(f, get_mime_type (fullpath));
+            http_ok(f, get_mime_type(fullpath));
         } else {
             http_ok(f, "text/html");
         }
@@ -440,9 +442,9 @@ static int http_handler(char *path, map_t *header, map_t *args, FILE *f) {
 
     if (strcmp(path, "/") == 0) {
         /* Serialize query processing */
-        pthread_mutex_lock (&query_lock);
-        handle_query (f, query);
-        pthread_mutex_unlock (&query_lock);
+        pthread_mutex_lock(&query_lock);
+        handle_query(f, query);
+        pthread_mutex_unlock(&query_lock);
     } 
     else if (path[0] == '/') {
         handle_page(f, path+1, query);

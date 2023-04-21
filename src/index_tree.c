@@ -329,7 +329,7 @@ static void set_connective_errmsg(char *connective, char **errmsg) {
 /* 
  * Checks whether a query is syntactically valid. Returns a bool.
  */
-static int_fast8_t is_valid_query(index_t *index, list_t *query, char **errmsg) {
+static int is_valid_query(index_t *index, list_t *query, char **errmsg) {
     list_iter_t *q_iter = list_createiter(query);
     if (q_iter == NULL) {
         memory_error(errmsg);
@@ -347,7 +347,7 @@ static int_fast8_t is_valid_query(index_t *index, list_t *query, char **errmsg) 
      * 3: A search cannot be only a connective 
      */
     if ((n_tokens == 2) || (curr_is_connective && (curr[0] != '(')) || (n_tokens == 1 && curr_is_connective)) {
-        goto connective_error;
+        goto error;
     } else if (n_tokens == 1) {
         /* if single term search, the word was already cleared through the combined check above. */
         return 1;
@@ -367,16 +367,20 @@ static int_fast8_t is_valid_query(index_t *index, list_t *query, char **errmsg) 
                 n_par_begin++;
             else if (curr[0] == ')')
                 n_par_end++;
-            else if (prev_is_connective && !is_paranthesis(prev) && !is_paranthesis(curr))
+            else if (prev_is_connective && !is_paranthesis(prev))
                 /* found two connectives in a row */
-                goto connective_error;
+                goto error;
         }
     }
-
     list_destroyiter(q_iter);
+
+    if (n_par_begin != n_par_end) {
+        *errmsg = "invalid parantheses setting";
+        return 0;
+    }
     return 1;
 
-connective_error:
+error:
     set_connective_errmsg(curr, errmsg);
     list_destroyiter(q_iter);
     return 0;
@@ -390,11 +394,6 @@ list_t *index_query(index_t *index, list_t *query, char **errmsg) {
     /* case for single term queries */
     if (list_size(query) == 1) {
         char *term = list_popfirst(query);
-
-        /* validate that term is not a connective */
-        if (set_contains(index->connectives, term)) {
-            return connective_error(errmsg);
-        }
 
         list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
         if (results == NULL) {

@@ -280,7 +280,7 @@ static void run_query(FILE *f, char *query) {
     while (list_hasnext(iter)) {
         free(list_next(iter));
     }
-	
+
     list_destroyiter(iter);
 
 end:

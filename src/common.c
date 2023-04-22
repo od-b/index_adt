@@ -227,6 +227,15 @@ int compare_pointers(void *a, void *b) {
     return 0;	
 }
 
+int compare_ints(void *a, void *b) {
+    int _a = *(int *)a;
+    int _b = *(int *)b;
+
+    if (_a < _b) return -1;
+    if (_a > _b) return 1;
+    return 0;	
+}
+
 int is_valid_directory(const char *dirpath) {
     struct stat s;
 

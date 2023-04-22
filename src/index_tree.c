@@ -1,3 +1,8 @@
+/*
+ * Index ADT implementation done almost solely through the use of tree-based sets 
+ * TODO: [README LINK]
+*/
+
 #include "index.h"
 #include "common.h"
 #include "printing.h"
@@ -7,27 +12,30 @@
 // #include "list.h" -- included through index.h
 
 #include <string.h>     /* strcmp, etc */
+#include <strings.h>     /* strcmp, etc */
 // #include <stdio.h> -- included through common.h
 // #include <stdlib.h> -- included through printing.h
 
 
 #define UNUSED(x) { (void)(x); }
 
-#define T_WORD    0
-#define O_ANDNOT  1
-#define O_AND     2
-#define O_OR      3
-#define P_OPEN    -1
-#define P_CLOSE   -2
+enum word_type {
+    WORD   =  0,
+    ANDNOT =  1,
+    AND    =  2,
+    OR     =  3,
+    OPEN   = -1,
+    CLOSE  = -2,
+};
 
 
-/* indexed path. Contains a char* path, and a set_t *i_words_at_path */
+/* type of indexed path */
 typedef struct i_path {
     char     *path;               
     set_t    *i_words_at_path;    /* set of *to all words (i_word_t) contained in the file at path location  */
 } i_path_t;
 
-/* indexed word. Contains a char* word, and a set_t *i_paths_with_word */
+/* type of indexed word */
 typedef struct i_word {
     char     *word;
     set_t    *i_paths_with_word;  /* set of *to all i_path_t which contain this i_word */
@@ -40,7 +48,7 @@ typedef struct index {
 } index_t;
 
 
-/* --- COMPARE FUNCTIONS --- */
+/* --- COMPARISON FUNCTIONS --- */
 
 /* compares two i_path_t objects by their ->path */
 int compare_i_paths_by_string(i_path_t *a, i_path_t *b) {
@@ -54,16 +62,12 @@ int compare_i_words_by_string(i_word_t *a, i_word_t *b) {
 
 /* compares two i_word_t objects by how many files they appear in */
 int compare_i_words_by_n_occurances(i_word_t *a, i_word_t *b) {
-    return (
-        set_size((set_t*)(a)->i_paths_with_word)
-        - set_size((set_t*)(b)->i_paths_with_word)
-    );
+    return (set_size(a->i_paths_with_word) - set_size(b->i_paths_with_word));
 }
 
 int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
     return (a->score - b->score);
 }
-
 
 /* --- CREATION, DESTRUCTION --- */
 
@@ -152,9 +156,8 @@ void index_destroy(index_t *index) {
 }
 
 /*
- * initialize a struct i_path_t using the given path.
- * set i_path->path to a copy of the given path.
- * creates an empty set @ i_path->i_words_at_path, with cmpfunc_t := compare_i_words_by_string
+ * returns a newly created i_path, using the given path.
+ * creates an empty set at the i_path->i_words_at_path, with the cmpfunc compare_i_words_by_string
  */
 static i_path_t *create_i_path(char *path) {
     i_path_t *new_i_path = malloc(sizeof(i_path_t));
@@ -162,7 +165,7 @@ static i_path_t *create_i_path(char *path) {
         return NULL;
     }
 
-    new_i_path->path = copy_string(path);
+    new_i_path->path = path;
     if (new_i_path->path == NULL) {
         return NULL;
     }
@@ -174,38 +177,6 @@ static i_path_t *create_i_path(char *path) {
     }
 
     return new_i_path;
-}
-
-/* 
- * Search for an indexed word within index->i_words. If it does not exist, it will be added and initialized.
- * returns the existing, or newly created, i_word_t.
- */
-static i_word_t *get_or_add(index_t *index, char *word) {
-    index->search_word->word = word;
-
-    /* try to add the i_word, then compare to determine result */
-    i_word_t *i_word = set_put(index->i_words, index->search_word);
-
-    if (i_word == index->search_word) {
-        /* word was not a duplicate entry. Initialize the i_word. */
-        i_word->word = copy_string(word);
-        i_word->i_paths_with_word = set_create((cmpfunc_t)compare_i_paths_by_string);
-
-        /* Since the search word was added, create a new i_word for searching. */
-        index->search_word = malloc(sizeof(i_word_t));
-
-        if (i_word->word == NULL || i_word->i_paths_with_word == NULL || index->search_word == NULL) {
-            ERROR_PRINT("out of memory");
-            return NULL;
-        }
-        index->search_word->i_paths_with_word = NULL;
-    }
-
-    /* reset the search word to NULL */
-    index->search_word->word = NULL;
-
-    /* return i_word, be it the newly added one or the existing i_word */
-    return i_word;
 }
 
 /*
@@ -220,8 +191,6 @@ static i_word_t *index_search(index_t *index, char *word) {
 
 void index_addpath(index_t *index, char *path, list_t *words) {
     list_iter_t *words_iter = list_createiter(words);
-
-    /* i_path_t to store the path + pointers to (or new) words being indexed */
     i_path_t *new_i_path = create_i_path(path);
 
     if (words_iter == NULL || new_i_path == NULL) {
@@ -229,20 +198,40 @@ void index_addpath(index_t *index, char *path, list_t *words) {
     }
 
     /* iterate over all words in the provided list */
-    void *elem;
-    while ((elem = list_next(words_iter)) != NULL) {
-        i_word_t *curr_i_word = get_or_add(index, elem);
-        free(elem);
+    void *word;
+    while ((word = list_next(words_iter)) != NULL) {
+        index->search_word->word = word;
+
+        /* try to add the word to the index */
+        i_word_t *i_word = set_put(index->i_words, index->search_word);
+
+        if (i_word == index->search_word) {
+            /* search word was added. initialize it as an indexed word. */
+            // i_word->word = copy_string(word);
+            i_word->word = word;
+            i_word->i_paths_with_word = set_create((cmpfunc_t)compare_i_paths_by_string);
+
+            /* Since the search word was added, create a new i_word for searching. */
+            index->search_word = malloc(sizeof(i_word_t));
+
+            if (i_word->word == NULL || i_word->i_paths_with_word == NULL || index->search_word == NULL) {
+                ERROR_PRINT("out of memory");
+            }
+            index->search_word->i_paths_with_word = NULL;
+        } else {
+            /* free the duplicate word */
+            free(word);
+        }
+
+        /* reset the search word to NULL */
+        index->search_word->word = NULL;
 
         /* add the file index to the current index word */
-        set_add(curr_i_word->i_paths_with_word, new_i_path);
+        set_add(i_word->i_paths_with_word, new_i_path);
 
         /* add word to the file index */
-        set_add(new_i_path->i_words_at_path, curr_i_word);
+        set_add(new_i_path->i_words_at_path, i_word);
     }
-
-    /* cleanup */
-    free(path);
     list_destroyiter(words_iter);
 }
 
@@ -285,30 +274,21 @@ static void parse_query(list_t *tokens, list_t *results) {
 }
 
 /*
- * returns the defined type of token:
-    T_WORD    =>    0
-    O_ANDNOT  =>    1
-    O_AND     =>    2
-    O_OR      =>    3
-    P_OPEN    =>    -1
-    P_CLOSE   =>    -2
+ * returns the defined type of token
  */
 static int word_type(char *token) {
     if (token[0] == '(')
-        return P_OPEN;
+        return OPEN;
     if (token[0] == ')')
-        return P_CLOSE;
+        return CLOSE;
+    if (strcmp(token, "AND") == 0)
+        return AND;
+    if (strcmp(token, "OR") == 0)
+        return OR;
+    if (strcmp(token, "ANDNOT") == 0)
+        return ANDNOT;
 
-    if (isupper(token[0])) {
-        if (strcmp(token, "AND") == 0)
-            return O_AND;
-        if (strcmp(token, "OR") == 0)
-            return O_OR;
-        if (strcmp(token, "ANDNOT") == 0)
-            return O_ANDNOT;
-    }
-
-    return T_WORD;
+    return WORD;
 }
 
 /* 
@@ -332,13 +312,13 @@ static int is_valid_query(list_t *tokens, int n_tokens, char **errmsg) {
         * Every operator must have adjacent terms, and parantheses must occur in multiples of 2.
         * => for every word, operator or parantheses added in addition to the 'root' word, n_tokens will 
         * be incremented by 2 if query is valid, and |tokens| will therefore never be even */
-        *errmsg = "Undefined syntax error. Check your query, or see the documentation for usage.";
+        *errmsg = "Invalid use of parantheses or operators.";
         goto error;
     }
 
     if (n_tokens == 1) {
         /* single term word query - boolean validity check */
-        if (curr_type == T_WORD) {
+        if (curr_type == WORD) {
             list_destroyiter(q_iter);
             return 1;
         }
@@ -346,12 +326,18 @@ static int is_valid_query(list_t *tokens, int n_tokens, char **errmsg) {
         goto error;
     }
 
-    if (curr_type == P_OPEN) {
+    if (curr_type == OPEN) {
         n_par_open++;
-    } else if (curr_type != T_WORD) {
+    } else if (curr_type != WORD) {
         *errmsg = "Syntax Error: Search must begin with an opening paranthesis or word.";
         goto error;
     }
+
+    // Declare an empty stack.
+    // Push an opening parenthesis on top of the stack.
+    // In case of a closing bracket, check if the stack is empty.
+    // If not, pop in a closing parenthesis if the top of the stack contains the corresponding opening parenthesis.
+    // If the parentheses are valid, then the stack will be empty once the input string finishes.
 
     /* iterate over the rest of the query to look for errors */
     while ((curr = list_next(q_iter)) != NULL) {
@@ -361,10 +347,10 @@ static int is_valid_query(list_t *tokens, int n_tokens, char **errmsg) {
             /* current token is a paranthesis. forget the last operator. */
             last_operator = 0;
 
-            if (curr_type == P_OPEN) {
+            if (curr_type == OPEN) {
                 n_par_open++;
-            } else if (curr_type == P_CLOSE) {
-                if (prev_type == P_OPEN) {
+            } else if (curr_type == CLOSE) {
+                if (prev_type == OPEN) {
                     *errmsg = "Syntax Error: Empty parantheses.";
                     goto error;
                 }
@@ -386,8 +372,8 @@ static int is_valid_query(list_t *tokens, int n_tokens, char **errmsg) {
         prev_type = curr_type;
     }
 
-    if ((curr_type != T_WORD) && (curr_type != P_CLOSE)) {
-        if (curr_type == P_OPEN) 
+    if ((curr_type != WORD) && (curr_type != CLOSE)) {
+        if (curr_type == OPEN) 
             *errmsg = "Syntax Error: Query may not end with an opening paranthesis.";
         else
             *errmsg = "Syntax Error: Query may not end with an operator.";

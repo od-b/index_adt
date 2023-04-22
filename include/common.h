@@ -13,9 +13,6 @@ struct list;
  */
 typedef int (*cmpfunc_t)(void *, void *);
 
-
-typedef void *(*searchfunc_t)(void *);
-
 /*
  * The type of hash functions.
  */
@@ -24,7 +21,8 @@ typedef unsigned long (*hashfunc_t)(void *);
 
 /* --- ADDED COMMON FUNCTIONS --- */
 
-
+/* compares two elements with the int type */
+int compare_ints(void *a, void *b);
 
 /* 
  * Copies the src string. returns a pointer to the copy.

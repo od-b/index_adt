@@ -14,10 +14,12 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <ctype.h>
+#include <unistd.h>
 
 
 #define PORT_NUM 8080
 #define PINFO 1
+#define ADDPATH_P_SPACING 500
 
 static pthread_mutex_t query_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -33,9 +35,7 @@ struct tag_mapping {
     void (*render) (FILE *fp, char *query);
 };
 
-const struct tag_mapping
-
-tag_mappings[] = {
+const struct tag_mapping tag_mappings[] = {
     { "title",   print_title },
     { "query",   print_processed_querystring },
     { "results", run_query }
@@ -48,9 +48,7 @@ struct mime_entry {
     const char *mime_type;
 };
 
-const struct mime_entry
-
-mime_table[] = {
+const struct mime_entry mime_table[] = {
     { "html",  "text/html" },
     { "htm",   "text/html" },
     { "xml",   "application/xml" },
@@ -479,12 +477,14 @@ int main(int argc, char **argv) {
 
     iter = list_createiter(files);
 
-    int n = 0;
+    int n_added = 0;
+    int n_files = list_size(files) - 1;
 
     while (list_hasnext(iter)) {
         relpath = (char *)list_next(iter);
         fullpath = concatenate_strings(2, root_dir, relpath);
-        if (n % 500 == 0) {
+
+        if ((n_added % ADDPATH_P_SPACING == 0) || (n_added == n_files)){
             DEBUG_PRINT("Indexing %s\n", fullpath);
         }
 
@@ -494,14 +494,13 @@ int main(int argc, char **argv) {
 
         free(fullpath);
         list_destroy(words);
-        n++;
+        n_added++;
     }
 
     list_destroyiter(iter);
     list_destroy(files);
 
-    // printf("indexer pid: %u", (unsigned int)getpid());
-    DEBUG_PRINT("Serving queries on port %s:%d\n", "127.0.0.1", (int)PORT_NUM);
+    DEBUG_PRINT("Indexer (%u): Serving queries on port %s:%d\n", (unsigned int)getpid(), "127.0.0.1", (int)PORT_NUM);
 
     status = http_server((int)PORT_NUM, http_handler);
     index_destroy(idx);

@@ -13,6 +13,7 @@ typedef struct query_result {
     double score;  /* Document to query score */
 } query_result_t;
 
+
 /*
  * Creates a new, empty index.
  */

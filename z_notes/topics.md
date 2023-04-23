@@ -10,28 +10,36 @@
 * Trees - aatree, rbtree
 
 
-# Design & Implementation  
-* Initial Design - (idea: structs with circular referencing)
-* Transition: precode changes
-* How to measure, test and compare? --> create index variants
-* differences between implementations
-* changes to design during development
-* building the index: add_path, (more duplicates == fewer i_word_t mallocs)
-* parser: goals, limitiations, rules, requirements, logical equivalences, implementation
-* result score: tf-idf
+# Design & Implementation
+* intro
+  * Initial Design - (idea: structs with circular referencing)
+  * changes to set.h (adhering fully to the given set ADT vs. modification)
+* building the index
+  * index_addpath (more duplicates == fewer i_word_t mallocs)
+* accessing the index
+  * parser
+    goals, limitiations, rules, requirements, logical equivalences, implementation
+  * calculating result score
+    tf-idf
+* index variants
+  * differences between implementations
+  * How to measure, test and compare? --> create index variants
+* initial design plan vs. actualized design
 
 
 # Experiments
- * intro: comparing the implemented indexes
- * initial, simple experiments
- * advanced comparisons, building | accessing: 
+ * intro
+  * how to benchmark anything? (trying different options)
+  * prototype experiments
+ * advanced comparisons
+  * building | accessing
   * large sets of files
   * small sets of files
   * big files vs small files?
 
 
 # Results
- * index_tree VS index_map:
+ * index_tree VS index_map
   * scaling: time | space
   * strengths | weaknesses, (build, search)
 

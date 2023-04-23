@@ -7,27 +7,22 @@
 #include "common.h"
 #include "printing.h"
 #include "set.h"
-#include <ctype.h>
-// #include "map.h"
-// #include "list.h" -- included through index.h
 
-#include <string.h>     /* strcmp, etc */
-#include <strings.h>     /* strcmp, etc */
-// #include <stdio.h> -- included through common.h
-// #include <stdlib.h> -- included through printing.h
+#include <ctype.h>
+#include <string.h>
 
 
 #define UNUSED(x) { (void)(x); }
 
-enum word_type {
-    WORD   =  0,
-    ANDNOT =  1,
-    AND    =  2,
-    OR     =  3,
-    OPEN   = -1,
-    CLOSE  = -2,
+enum term_type {
+    WORD      =  0,
+    OP_ANDNOT =  1,
+    OP_AND    =  2,
+    OP_OR     =  3,
+    P_OPEN    = -1,
+    P_CLOSE   = -2,
+    SUBQUERY  = -3
 };
-
 
 /* type of indexed path */
 typedef struct i_path {
@@ -48,7 +43,7 @@ typedef struct index {
 } index_t;
 
 
-/* --- COMPARISON FUNCTIONS --- */
+/* --- COMPARISON | HELPER FUNCTIONS --- */
 
 /* compares two i_path_t objects by their ->path */
 int compare_i_paths_by_string(i_path_t *a, i_path_t *b) {
@@ -60,7 +55,7 @@ int compare_i_words_by_string(i_word_t *a, i_word_t *b) {
     return strcmp(a->word, b->word);
 }
 
-/* compares two i_word_t objects by how many files they appear in */
+/* compares two i_word_t objects by how many files(i_paths) they appear in */
 int compare_i_words_by_n_occurances(i_word_t *a, i_word_t *b) {
     return (set_size(a->i_paths_with_word) - set_size(b->i_paths_with_word));
 }
@@ -69,7 +64,57 @@ int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
     return (a->score - b->score);
 }
 
-/* --- CREATION, DESTRUCTION --- */
+/*
+ * if a word is indexed, returns its related i_word_t. Otherwise, returns NULL. 
+ */
+static i_word_t *index_search(index_t *index, char *word) {
+    index->search_word->word = word;
+    i_word_t *search_result = set_get(index->i_words, index->search_word);
+    index->search_word->word = NULL;
+    return search_result;
+}
+
+/* --- CREATION | DESTRUCTION --- */
+
+/*
+ * initializes and returns a new query result 
+ */
+static query_result_t *create_query_result(char *path, double score) {
+    query_result_t *result = malloc(sizeof(query_result_t));
+    if (result == NULL) {
+        ERROR_PRINT("out of memory");
+        return NULL;
+    }
+
+    result->path = path;
+    result->score = score;
+
+    return result;
+}
+
+/*
+ * returns a newly created i_path, using the given path.
+ * creates an empty set at the i_path->i_words_at_path, with the cmpfunc compare_i_words_by_string
+ */
+static i_path_t *create_i_path(char *path) {
+    i_path_t *new_i_path = malloc(sizeof(i_path_t));
+    if (new_i_path == NULL) {
+        return NULL;
+    }
+
+    new_i_path->path = path;
+    if (new_i_path->path == NULL) {
+        return NULL;
+    }
+
+    /* create an empty set to store indexed paths */
+    new_i_path->i_words_at_path = set_create((cmpfunc_t)compare_i_words_by_string);
+    if (new_i_path->i_words_at_path == NULL) {
+        return NULL;
+    }
+
+    return new_i_path;
+}
 
 index_t *index_create() {
     index_t *new_index = malloc(sizeof(index_t));
@@ -155,40 +200,6 @@ void index_destroy(index_t *index) {
     DEBUG_PRINT("All memory allocated by the index is now freed\n");
 }
 
-/*
- * returns a newly created i_path, using the given path.
- * creates an empty set at the i_path->i_words_at_path, with the cmpfunc compare_i_words_by_string
- */
-static i_path_t *create_i_path(char *path) {
-    i_path_t *new_i_path = malloc(sizeof(i_path_t));
-    if (new_i_path == NULL) {
-        return NULL;
-    }
-
-    new_i_path->path = path;
-    if (new_i_path->path == NULL) {
-        return NULL;
-    }
-
-    /* create an empty set to store indexed paths */
-    new_i_path->i_words_at_path = set_create((cmpfunc_t)compare_i_words_by_string);
-    if (new_i_path->i_words_at_path == NULL) {
-        return NULL;
-    }
-
-    return new_i_path;
-}
-
-/*
- * if a word is indexed, returns its related i_word_t. Otherwise, returns NULL. 
- */
-static i_word_t *index_search(index_t *index, char *word) {
-    index->search_word->word = word;
-    i_word_t *search_result = set_get(index->i_words, index->search_word);
-    index->search_word->word = NULL;
-    return search_result;
-}
-
 void index_addpath(index_t *index, char *path, list_t *words) {
     list_iter_t *words_iter = list_createiter(words);
     i_path_t *new_i_path = create_i_path(path);
@@ -235,212 +246,300 @@ void index_addpath(index_t *index, char *path, list_t *words) {
     list_destroyiter(words_iter);
 }
 
-/*
- * initializes and returns a new query result 
- */
-static query_result_t *create_query_result(char *path, double score) {
-    query_result_t *result = malloc(sizeof(query_result_t));
-    if (result == NULL) {
-        ERROR_PRINT("out of memory");
-        return NULL;
-    }
 
-    result->path = path;
-    result->score = score;
+/* --- PARSER --- 
+ * `(graph AND theory) ANDNOT (dot OR math)``
+ * 
+*/
 
-    return result;
-}
-
-
-/* --- PARSER --- */
-
-static void parse_query(list_t *tokens, list_t *results) {
-    // Base case: a single word query
-    if (list_size(tokens) == 1) {
-        return;
-    }
-
-    // check for ANDNOT
-    // evaluate the left term and remove it from the tokens list
-    // evaluate the right term and remove it from the tokens list
-
-    // check for AND
-    // evaluate the left term and remove it from the tokens list
-    // evaluate the right term and remove it from the tokens list
-
-    // check for OR
-    // evaluate the left term and append its results to the results list
-    // evaluate the right term and append its results to the results list
-}
-
-/*
- * returns the defined type of token
- */
-static int word_type(char *token) {
-    if (token[0] == '(')
-        return OPEN;
-    if (token[0] == ')')
-        return CLOSE;
-    if (strcmp(token, "AND") == 0)
-        return AND;
-    if (strcmp(token, "OR") == 0)
-        return OR;
-    if (strcmp(token, "ANDNOT") == 0)
-        return ANDNOT;
-
+static int token_type(char *str) {
+    /* find the type of word and store as an int, (<word> / "AND" / "(" / etc)*/
+    if (str[0] == '(')
+        return P_OPEN;
+    if (str[0] == ')')
+        return P_CLOSE;
+    if (strcmp(str, "AND") == 0)
+        return OP_AND;
+    if (strcmp(str, "OR") == 0)
+        return OP_OR;
+    if (strcmp(str, "ANDNOT") == 0)
+        return OP_ANDNOT;
     return WORD;
 }
 
+struct term;
+typedef struct term term_t;
+
+/* The type of term. a term can have one of:
+ * ->word  : string to search for within files, with or without a related operator.
+ * ->query : collection of terms enclosed within parantheses)
+ * ->operator / paranthesis type. 
+ */
+struct term {
+    int type;
+    int level;
+    char *word;
+    term_t *query;
+    term_t *left;
+    term_t *right;
+};
+
 /* 
  * Checks whether a query is syntactically valid. Returns a bool.
+ * Edge cases still remain to be checked, but this serves as an initial filter for 
+ * common errors before attempting to parse the query.
  */
-static int is_valid_query(list_t *tokens, int n_tokens, char **errmsg) {
-    list_iter_t *q_iter = list_createiter(tokens);
-    if (q_iter == NULL) {
-        return 0;
-    }
-
+static int is_valid_query(term_t *leftmost_token, char **errmsg) {
     int n_par_open = 0, n_par_close = 0, last_operator = 0;
-    int prev_type, curr_type;
-    char *curr = list_next(q_iter);
-    curr_type = prev_type = word_type(curr);
 
-    if (n_tokens % 2 == 0) {
-        /* Any given valid query will always have an odd number of tokens. Reasoning:
-        * '<word> <word>' results in the indexer adding an "OR" inbetween.
-        * As a consequence of this, all words must (or will, for "OR"), be connected by an operator.
-        * Every operator must have adjacent terms, and parantheses must occur in multiples of 2.
-        * => for every word, operator or parantheses added in addition to the 'root' word, n_tokens will 
-        * be incremented by 2 if query is valid, and |tokens| will therefore never be even */
-        *errmsg = "Invalid use of parantheses or operators.";
-        goto error;
-    }
-
-    if (n_tokens == 1) {
+    if (leftmost_token->right == NULL) {
         /* single term word query - boolean validity check */
-        if (curr_type == WORD) {
-            list_destroyiter(q_iter);
+        if (leftmost_token->type == WORD) {
             return 1;
         }
         *errmsg = "Single term queries must be a word.";
-        goto error;
+        return 0;
     }
+    /* there's atleast 3 tokens */
 
-    if (curr_type == OPEN) {
+    term_t *token, *curr = leftmost_token;
+
+    if (leftmost_token->type == P_OPEN) {
         n_par_open++;
-    } else if (curr_type != WORD) {
+    } else if (leftmost_token->type != WORD) {
         *errmsg = "Syntax Error: Search must begin with an opening paranthesis or word.";
-        goto error;
+        return 0;
     }
 
-    // Declare an empty stack.
-    // Push an opening parenthesis on top of the stack.
-    // In case of a closing bracket, check if the stack is empty.
-    // If not, pop in a closing parenthesis if the top of the stack contains the corresponding opening parenthesis.
-    // If the parentheses are valid, then the stack will be empty once the input string finishes.
+    /* iterate over the rest of the query to check for errors */
+    while (curr->right != NULL) {
+        curr = curr->right;
 
-    /* iterate over the rest of the query to look for errors */
-    while ((curr = list_next(q_iter)) != NULL) {
-        curr_type = word_type(curr);
-
-        if (curr_type < 0) {
+        if (curr->type < 0) {
             /* current token is a paranthesis. forget the last operator. */
             last_operator = 0;
 
-            if (curr_type == OPEN) {
+            if (curr->type == P_OPEN) {
                 n_par_open++;
-            } else if (curr_type == CLOSE) {
-                if (prev_type == OPEN) {
-                    *errmsg = "Syntax Error: Empty parantheses.";
-                    goto error;
+                if (curr->right == NULL) {
+                    *errmsg = "Syntax Error: Query cannot end with an opening paranthesis.";
+                    return 0;
+                } else if (curr->right->type > 0) {
+                    *errmsg = "Syntax Error: Queries may not begin with an operator.";
+                    return 0;
                 }
+            } else if (curr->type == P_CLOSE) {
                 n_par_close++;
+                if (curr->left->type == P_OPEN) {
+                    *errmsg = "Syntax Error: Empty parantheses.";
+                    return 0;
+                }
+                if (n_par_open < n_par_close) {
+                    *errmsg = "Syntax Error: Unmatched paranthesis.";
+                    return 0;
+                }
+                if (curr->left->type > 0) {
+                    *errmsg = "Syntax Error: A paranthesis may not be closed directly after an operator.";
+                    return 0;
+                }
             }
-        } else if (curr_type > 0) {
+        } else if (curr->type > 0) {
             /* current token is an operator */
-            if (last_operator && (last_operator != curr_type)) {
-                *errmsg = "Syntax Error: Different types of operators must be separated by parantheses.";
-                goto error;
+            if (last_operator) {
+                if (curr->type == OP_ANDNOT) {
+                    *errmsg = "Syntax Error: The ANDNOT operator cannot be chained without the use of parantheses.";
+                    return 0;
+                }
+                if (last_operator != curr->type) {
+                    *errmsg = "Syntax Error: Different types of operators must be separated by parantheses.";
+                    return 0;
+                }
+                /* case of chained AND/OR operators. 
+                 * check for correct parantheses use, if any exist. */
+                int has_par_left = 0;
+                int has_par_right = 0;
+                /* if chained, and there is a paranthesis on one side, 
+                 * require parantheses on both. (either open/close) 
+                 */
+                token = curr;
+                while (token->left != NULL) {
+                    token = token->left;
+                    if (token->type < 0) {
+                        has_par_left = 1;
+                        break;
+                    }
+                }
+                token = curr;
+                while (token->right != NULL) {
+                    token = token->right;
+                    if (token->type < 0) {
+                        has_par_right = 1;
+                        break;
+                    }
+                }
+                if (has_par_left != has_par_right) {
+                    *errmsg = "Syntax Error: Use parantheses when chaining AND/OR operators in combined queries.";
+                    return 0;
+                }
             }
-            if (prev_type > 0) {
+
+            if (curr->left->type > 0) {
                 *errmsg = "Syntax Error: Adjacent operators";
-                goto error;
+                return 0;
+            }
+
+            /* operator cannot be enclosed in parantheses; e.g. `cat (AND) dog`, as operators alone are not a <term>. */
+            if ((curr->left->type == P_OPEN) && (curr->right->type == P_CLOSE)) {
+                *errmsg = "Syntax Error: Operator has no connected term.";
+                return 0;
+            }
+
+            /* validate that first non-paranthesis token on left side of operator is a word */
+            token = curr;
+            while (token->type != WORD) {
+                token = token->left;
+                if ((token == NULL) || (token->type > 0)) {
+                    *errmsg = "Syntax Error: 1 Operator has no connected term | Adjacent operators.";
+                    return 0;
+                }
             }
             /* remember current operator for when the next operator comes */
-            last_operator = curr_type;
+            last_operator = curr->type;
         }
-        prev_type = curr_type;
     }
 
-    if ((curr_type != WORD) && (curr_type != CLOSE)) {
-        if (curr_type == OPEN) 
-            *errmsg = "Syntax Error: Query may not end with an opening paranthesis.";
-        else
-            *errmsg = "Syntax Error: Query may not end with an operator.";
-        goto error;
-    } 
+    /* for last token, verify that an operator is not the first non-paranthesis. */
+    while (curr->type != WORD) {
+        curr = curr->left;
+        if ((curr == NULL) || (curr->type > 0)) {
+            *errmsg = "Syntax Error: 2 Operator has no connected term | Adjacent operators.";
+            return 0;
+        }
+    }
 
     if (n_par_open != n_par_close) {
-        *errmsg = "Syntax Error: Opening and closing paranthesis counts do not match.";
-        goto error;
-    } 
-
-    list_destroyiter(q_iter);
-    DEBUG_PRINT("Syntax Error: Query passed all tests and should be valid\n");
-    return 1;
-
-error:
-    /* typically wont use goto, but i believe it improves readability here */
-    list_destroyiter(q_iter);
-    return 0;
-}
-
-
-list_t *index_query(index_t *index, list_t *query, char **errmsg) {
-    /* set a default error message so we can simply return in case of memory error */
-    *errmsg = "index out of memory";
-    const int total_n_tokens = list_size(query);
-
-    /* check the entire query for syntax errors */
-    if (!is_valid_query(query, total_n_tokens, errmsg)) {
-        return NULL;
+        *errmsg = "Syntax Error: Opening and closing paranthesis do not match.";
+        return 0;
     }
 
-    list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
+    DEBUG_PRINT("Syntax Error: Query passed all tests and should be syntactically valid.\n");
+    return 1;
+}
 
-    /* case for single term queries */
-    if (total_n_tokens == 1) {
-        char *term = list_popfirst(query);
+static void destroy_terms(term_t *leftmost_term) {
+    term_t *curr = leftmost_term;
+    term_t *tmp;
 
-        if (results == NULL) {
+    while (curr != NULL) {
+        tmp = curr;
+        if (tmp->query != NULL) {
+            destroy_terms(tmp->query);
+        }
+        free(tmp);
+        curr = curr->right;
+    }
+}
+
+static term_t *create_token_terms(list_t *query) {
+    list_iter_t *q_iter = list_createiter(query);
+    if (q_iter == NULL) {
+        return NULL;
+    }
+    term_t *prev = NULL, *first = NULL;
+
+    char *elem;
+    while ((elem = list_next(q_iter)) != NULL) {
+        term_t *token = malloc(sizeof(term_t));
+        if (token == NULL) {
             return NULL;
         }
 
-        i_word_t *search_result = index_search(index, term);
-        if (search_result != NULL) {
-            /* iterate over i_paths that contain indexed word */
-            set_iter_t *file_iter = set_createiter(search_result->i_paths_with_word);
-
-            double score = 0.0;
-            i_path_t *i_path;
-            while ((i_path = set_next(file_iter)) != NULL) {
-                score += 0.1;
-                list_addlast(results, create_query_result(i_path->path, score));
-            }
-            set_destroyiter(file_iter);
-
-            if (list_size(results) != 1) {
-                /* sort results by score */
-                list_sort(results);
-            }
+        if (first == NULL) {
+            first = token;
+            token->left = NULL;
+        } else {
+            prev->right = token;
+            token->left = prev;
         }
-        free(term);
-        return results;
-    }
 
-    *errmsg = "n_terms > 1";
+        token->type = token_type(elem);
+        if (token->type == WORD) {
+            token->word = elem;
+        } else {
+            token->word = elem;     /* FOR TESTING */
+            // token->word = NULL;
+        }
+        token->query = NULL;
+        token->right = NULL;
+        prev = token;
+    }
+    list_destroyiter(q_iter);
+    return first;
+}
+
+static set_t *parse_query(index_t *index, term_t *term) {
+    term_t *curr = term;
+    // (a AND b) OR ((c OR d) ANDNOT (x OR y))
+    // a OR ((b AND c) ANDNOT (x OR y))
+    UNUSED(curr);
+
+
+    /* detect if we are in an enclosed parantheses without other parantheses */
+    /* if there is a nested parantheses, enter it. */
     return NULL;
 }
+
+static int analyze_depth(term_t *leftmost_token) {
+    term_t *curr = leftmost_token;
+    int level = 0;
+    int max_level = 0;
+
+    while (curr != NULL) {
+        curr->level = level;
+        if (curr->type == P_OPEN) {
+            level += 1;
+            if (level > max_level) {
+                max_level = level;
+            }
+        } else if (curr->type == P_CLOSE) { 
+            level -= 1;
+            curr->level = level;
+        }
+        curr = curr->right;
+    }
+    return max_level;
+}
+
+list_t *index_query(index_t *index, list_t *query, char **errmsg) {
+    term_t *leftmost_token = create_token_terms(query);
+
+    UNUSED(parse_query);
+    UNUSED(index_search);
+    UNUSED(create_query_result);
+
+    int max_depth = analyze_depth(leftmost_token);
+
+    term_t *curr = leftmost_token;
+    while (curr != NULL) {
+        printf("'%s'->level = %d\n", curr->word, curr->level);
+        curr = curr->right;
+    }
+
+    printf("max_depth=%d\n", max_depth);
+
+    if (!is_valid_query(leftmost_token, errmsg)) {
+        destroy_terms(leftmost_token);
+        return NULL;
+    }
+
+    *errmsg = "valid query.";
+    destroy_terms(leftmost_token);
+    return NULL;
+}
+
+
+
+
 
 
 /* make clean && make assert_index && lldb assert_index */
@@ -485,3 +584,69 @@ list_t *index_query(index_t *index, list_t *query, char **errmsg) {
 // 
 //     list_destroyiter(iter);
 // }
+
+
+
+// const int total_n_tokens = list_size(query);
+
+// // /* check the entire query for syntax errors */
+// // if (!is_valid_query(query, total_n_tokens, errmsg)) {
+// //     return NULL;
+// // }
+
+// list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
+
+// /* case for single term queries */
+// if (total_n_tokens == 1) {
+//     char *term = list_popfirst(query);
+
+//     if (results == NULL) {
+//         return NULL;
+//     }
+
+//     i_word_t *search_result = index_search(index, term);
+//     if (search_result != NULL) {
+//         /* iterate over i_paths that contain indexed word */
+//         set_iter_t *file_iter = set_createiter(search_result->i_paths_with_word);
+
+//         double score = 0.0;
+//         i_path_t *i_path;
+//         while ((i_path = set_next(file_iter)) != NULL) {
+//             score += 0.1;
+//             list_addlast(results, create_query_result(i_path->path, score));
+//         }
+//         set_destroyiter(file_iter);
+
+//         if (list_size(results) != 1) {
+//             /* sort results by score */
+//             list_sort(results);
+//         }
+//     }
+//     free(term);
+//     return results;
+// }
+
+
+// if (list_size(query) % 2 == 0) {
+//     /* Any given valid query will always have an odd number of tokens. Reasoning:
+//     * '<word> <word>' results in the indexer adding an "OR" inbetween.
+//     * As a consequence of this, all words must (or will, for "OR"), be connected by an operator.
+//     * Every operator must have adjacent terms, and parantheses must occur in multiples of 2.
+//     * => for every word, operator or parantheses added in addition to the 'root' word, n_tokens will 
+//     * be incremented by 2 if query is valid, and |tokens| will therefore never be even */
+//     *errmsg = "Invalid use of parantheses or operators.";
+//     return NULL;
+// }
+
+
+/*
+    unsigned long long t_start, t_time;
+    t_start = gettime();
+    if (!is_valid_query(leftmost_token, errmsg)) {
+        destroy_terms(leftmost_token);
+        return NULL;
+    }
+    t_time = (gettime() - t_start);
+    printf("validity checks took a total of %llu μs\n", t_time);
+
+*/

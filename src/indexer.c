@@ -18,7 +18,7 @@
 
 
 #define PORT_NUM 8080
-#define PINFO 1
+#define PINFO 0
 #define ADDPATH_P_SPACING 500
 
 static pthread_mutex_t query_lock = PTHREAD_MUTEX_INITIALIZER;

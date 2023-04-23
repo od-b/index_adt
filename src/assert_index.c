@@ -107,7 +107,7 @@ void validate_index(index_t *ind) {
             result = index_query(ind, query, &errmsg);
 
             if (PTIME) {
-                t_time += (gettime() - t_start);
+                t_time = (gettime() - t_start);
             }
             if (result == NULL) {
                 ERROR_PRINT("Query resulted in the following error: %s", errmsg);

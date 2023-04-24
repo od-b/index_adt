@@ -1,6 +1,9 @@
 #include "set.h"
 #include "printing.h"
 
+#include <stdint.h>
+#include <stdlib.h>
+
 
 /*
  * ----- REFERENCES -----
@@ -134,7 +137,7 @@ inline static void rotate_right(set_t *tree, treenode_t *a) {
 
 int set_contains(set_t *set, void *elem) {
     treenode_t *curr = set->root;
-    int_fast8_t direction;
+    int direction;
 
     /* traverse until a NIL-node, or return if an equal element is found */
     while (curr != set->NIL) {
@@ -155,7 +158,7 @@ int set_contains(set_t *set, void *elem) {
 
 void *set_get(set_t *tree, void *elem) {
     treenode_t *curr = tree->root;
-    int_fast8_t direction;
+    int direction;
 
     /* traverse until a NIL-node, or return is an equal element is found */
     while (curr != tree->NIL) {
@@ -234,13 +237,12 @@ void *set_tryadd(set_t *tree, void *elem) {
     }
 
     treenode_t *curr = tree->root;
-    int_fast8_t direction;
+    int direction;
     treenode_t *new_node;
 
     /* iteratively add the node.
      * traverses the tree using cmpfunc until a NIL-node, or node with equal element is found.
      * if an equal element if found, returns it. Otherwise, creates a new node and breaks the loop.
-     * TODO: compare iterative and recursion add speed on different architectures
      */
     while (1) {
         direction = tree->cmpfunc(elem, curr->elem);
@@ -312,19 +314,15 @@ set_iter_t *set_createiter(set_t *set) {
     return new_iter;
 }
 
-void tree_resetiter(set_iter_t *iter) {
-    if (iter->node != iter->set->NIL) {
-        // finish the morris iterator process to avoid leaving any mutated leaves
-        // this loop does nothing other than correctly finish the iteration process
-        treenode_t *curr;
-        for (curr = next_node_inorder(iter); curr != iter->set->NIL; curr = next_node_inorder(iter));
-    }
-    iter->node = iter->set->root;
-}
 
 void set_destroyiter(set_iter_t *iter) {
-    if (iter->node != NULL) {
-        tree_resetiter(iter);
+    if (set_hasnext(iter)) {
+        /* Finish the morris iterator process to avoid leaving any mutated leaves
+         * this loop does nothing other than correctly finish the iteration process 
+         * TODO: iterate backwards instead, to erase modified leaf pointers. For now,
+         * this is a temp fix, and won't matter much as set iter is usually utilized to iter the entire tree.
+         */
+        for (void *elem = set_next(iter); elem != NULL; elem = set_next(iter));
     }
     free(iter);
 }

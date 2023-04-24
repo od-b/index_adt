@@ -34,7 +34,8 @@ FLAGS = -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
 
 .PHONY=all
 
-all: indexer assert_index
+all: indexer
+# all: indexer assert_index
 
 indexer: $(INDEXER_SRC) $(HEADERS) Makefile
 	gcc -Wall -o $@ -D_GNU_SOURCE -D_REENTRANT $(INDEXER_SRC) -I$(INCLUDE_DIR) -lm -lpthread $(FLAGS)

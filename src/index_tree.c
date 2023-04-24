@@ -7,6 +7,8 @@
 #include "common.h"
 #include "printing.h"
 #include "set.h"
+#include "pstack.h"
+#include "map.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -39,21 +41,21 @@ typedef struct index {
 */
 
 /* compares two i_path_t objects by their ->path */
-inline int compare_i_paths_by_string(i_path_t *a, i_path_t *b) {
+int compare_i_paths_by_string(i_path_t *a, i_path_t *b) {
     return strcmp(a->path, b->path);
 }
 
 /* compares two i_word_t objects by their ->word */
-inline int compare_i_words_by_string(i_word_t *a, i_word_t *b) {
+int compare_i_words_by_string(i_word_t *a, i_word_t *b) {
     return strcmp(a->word, b->word);
 }
 
 /* compares two i_word_t objects by how many files(i_paths) they appear in */
-inline int compare_i_words_by_n_occurances(i_word_t *a, i_word_t *b) {
+int compare_i_words_by_n_occurances(i_word_t *a, i_word_t *b) {
     return (set_size(a->i_paths_with_word) - set_size(b->i_paths_with_word));
 }
 
-inline int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
+int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
     return (a->score - b->score);
 }
 
@@ -143,6 +145,8 @@ index_t *index_create() {
 }
 
 void index_destroy(index_t *index) {
+    ERROR_PRINT("hello.\n");
+
     i_path_t *curr_i_path;
     i_word_t *curr_i_word;
     set_iter_t *i_path_iter, *i_word_iter;
@@ -152,7 +156,7 @@ void index_destroy(index_t *index) {
     set_t *all_i_paths = set_create((cmpfunc_t)compare_i_paths_by_string);
 
     if (all_i_paths == NULL) {
-        ERROR_PRINT("out of memory.");
+        ERROR_PRINT("out of memory.\n");
     }
 
     i_word_iter = set_createiter(index->i_words);
@@ -279,115 +283,122 @@ void index_addpath(index_t *index, char *path, list_t *words) {
 
 */
 
-/* defined type of operators 
- * not certain if cluttering the global namespace like this is a bad idea, so defined as 'OP_x'
-*/
 
-struct query;
-typedef struct query query_t;
+const int P_OPEN = -2;
+const int P_CLOSE = -1;
+const int OP_ANDNOT = 1;
+const int OP_AND = 2;
+const int OP_OR = 3;
+const int WORD = 0;
 
-struct query {
+static int token_type(char *token) {
+    if (token[0] == '(')
+        return P_OPEN;
+    else if (token[0] == ')')
+        return P_CLOSE;
+    else if (strcmp(token, "OR") == 0)
+        return OP_OR;
+    else if (strcmp(token, "AND") == 0)
+        return OP_AND;
+    else if (strcmp(token, "ANDNOT") == 0)
+        return OP_ANDNOT;
+    return WORD;
+}
+
+struct qnode;
+typedef struct qnode qnode_t;
+
+struct qnode {
+    i_word_t *i_word;
     int depth;
-    int operator;
-    set_t *result;  /* where an operator may store the result of the operation */
-    query_t *left;
-    query_t *right;
-    query_t *parent;
-    i_word_t *word;
+    int pos;
+    int type;
+    qnode_t *left;
+    qnode_t *right;
 };
 
+static qnode_t *create_query_nodes(index_t *index, list_t *query, char **errmsg) {
+    qnode_t *leftmost = NULL, *prev;
+    int tok_type, depth = 0;
+    char *token;
 
-enum operator_types {
-    OP_ANDNOT = 1,
-    OP_AND = 2,
-    OP_OR = 3
-};
+    while ((token = list_popfirst(query)) != NULL) {
+        qnode_t *node = malloc(sizeof(qnode_t));
+        if (node == NULL) {
+            ERROR_PRINT("out of memory");
+            return NULL;
+        }
+        node->i_word = NULL;
 
-
-static query_t *process_tokens(index_t *index, list_t *tokens, char **errmsg) {
-    int depth = 0;
-    char *tok;
-
-    query_t *prev_word = NULL;
-    query_t *curr_operator = NULL;
-    query_t *prev_operator = NULL;
-
-    while ((tok = list_next(tokens)) != NULL) {
-
-        if (tok[0] == ')') {
-            depth--;
-        } else if (tok[0] == '(') {
+        if (token[0] == '(') {
+            node->type = P_OPEN;
             depth++;
+        } else if (token[0] == ')') {
+            node->type = P_CLOSE;
+            node->depth = 1;
+            depth--;
+        } else if (strcmp(token, "OR") == 0) {
+            node->type = OP_OR;
+        } else if (strcmp(token, "AND") == 0) {
+            node->type = OP_AND;
+        } else if (strcmp(token, "ANDNOT") == 0) {
+            node->type = OP_ANDNOT;
         } else {
-            query_t *query = malloc(sizeof(query_t));
-            query->depth = depth;
-            query->word = NULL;
+            node->type = WORD;
+            node->i_word = index_search(index, token);
+        }
 
-            /* check if token is an operator */
-            if (islower(tok[0])) {
-                query->word = index_search(index, tok);   /* NULL if not indexed, which an operator must check. */
-                query->left = NULL;
-                query->right = NULL;
-                query->parent = curr_operator;
-            } else if (strcmp(tok, "OR") == 0) {
-                query->operator = OP_OR;
-            } else if (strcmp(tok, "AND") == 0) {
-                query->operator = OP_AND;
-            } else if (strcmp(tok, "ANDNOT") == 0) {
-                query->operator = OP_ANDNOT;
-            } else {
-                ERROR_PRINT("unrecognized token '%s'\n", tok);
+        node->depth = depth;
+        node->right = NULL;
+
+        if (leftmost == NULL) {
+            leftmost = node;
+            node->left = NULL;
+        } else {
+            prev->right = node;
+            node->left = prev;
+        }
+        prev = node;
+    }
+
+    return leftmost;
+}
+
+static void print_query(qnode_t *leftmost) {
+    qnode_t *curr = leftmost;
+    while (curr != NULL) {
+        char *msg;
+        if (curr->i_word != NULL) {
+            msg = curr->i_word->word;
+        } else {
+            switch (curr->type) {
+                case P_OPEN:
+                    msg = "(";
+                case P_CLOSE:
+                    msg = ")";
+                case OP_ANDNOT:
+                    msg = "ANDNOT";
+                case OP_AND:
+                    msg = "AND";
+                case OP_OR:
+                    msg = "OR";
             }
         }
-        free(tok);
-    }
-
-    return NULL;
-}
-
-static void print_queries(query_t *leftmost) {
-    query_t *curr = leftmost;
-    while (curr != NULL) {
-        char *op_description;
-
-        if (curr->operator == OP_ANDNOT)
-            op_description = "ANDNOT";
-        else if (curr->operator == OP_AND)
-            op_description = "AND";
-        else if (curr->operator == OP_OR)
-            op_description = "OR";
-        else
-            op_description = "NONE";
-
-        printf("'%s': depth=%d, op=%s", curr->word, curr->depth, op_description);
+        printf("%s: depth=%d, type=%d\n", msg, curr->depth, curr->type);
         curr = curr->right;
     }
 }
 
-static void destroy_queries(query_t *leftmost) {
-    query_t *tmp, *curr = leftmost;
-
-    while (curr != NULL) {
-        tmp = curr;
-        curr = curr->right;
-        free(tmp);
-    }
-}
-
-list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
-    query_t *leftmost_query = process_tokens(index, tokens, errmsg);
-
+list_t *index_query(index_t *index, list_t *query, char **errmsg) {
+    qnode_t *leftmost = create_query_nodes(index, query, errmsg);
+    // list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
+    print_query(leftmost);
     *errmsg = "valid query.";
-    destroy_queries(leftmost_query);
     UNUSED(index_search);
     UNUSED(create_query_result);
     return NULL;
 }
 
-// if (!is_valid_query(leftmost_token, errmsg)) {
-//     destroy_queries(leftmost_token);
-//     return NULL;
-// }
 
 /* make clean && make assert_index && lldb assert_index */
 /* make clean && make indexer && ./indexer data/cacm/ */

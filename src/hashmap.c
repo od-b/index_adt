@@ -166,9 +166,11 @@ void *map_get(map_t *map, void *key) {
     }
 
     if (e == NULL) {
-        /* removed debug print. This function is quite literally identical to map_haskey, 
-         * apart from returning NULL elem instead of a bool.
-         * Pointless to call map_haskey first if we need the elem in the case it exists.
+        DEBUG_PRINT("key not found in map");
+        /* Note: Changed from error to debug print: (would anyhow be invalidated upon not defining DEBUG)
+         * The process of map_haskey && map_get is the same. 
+         * Having to call map_haskey prior to performing the same operations once more makes no sense.
+         * in essence, map_haskey is not needed at all in a map, as we can rather call map_get and check for NULL.
         */
         return NULL;
     } else {

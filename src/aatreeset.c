@@ -235,10 +235,10 @@ void *set_get(set_t *set, void *elem) {
     return NULL;
 }
 
-void *set_put(set_t *set, void *elem) {
+void *set_tryadd(set_t *set, void *elem) {
     /* 
-     * low effort implementation of set_put to accomodate for header changes.
-     * performance-vise identical as calling set_contains followed by set_add()
+     * to comply with header changes.
+     * performance-vise identical to calling set_contains followed by set_add()
     */
     void *duplicate = set_get(set, elem);
 

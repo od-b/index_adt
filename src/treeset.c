@@ -145,7 +145,11 @@ int set_contains(set_t *set, void *elem) {
     return 0;
 }
 
-void *set_get(set_t *set, void *elem) {
+void *set_tryget(set_t *set, void *elem) {
+    /* 
+     * function comply with the header addition.
+     * code copied from the above set_contains, return values modified 
+    */
     treenode_t *n = set->root;
     int cmp;
 
@@ -162,18 +166,42 @@ void *set_get(set_t *set, void *elem) {
     return NULL;
 }
 
-void *set_put(set_t *set, void *elem) {
+void *set_tryadd(set_t *set, void *elem) {
     /* 
-     * low effort implementation of set_put to accomodate for header changes.
-     * performance-vise identical as set_contains followed by set_add()
+     * function comply with the header addition.
+     * code copied from the above set_add, return values modified 
     */
-    void *duplicate = set_get(set, elem);
+    treenode_t *n = set->root;
+    treenode_t *prev = NULL;
 
-    if (duplicate == NULL) {
-        set_add(set, elem);
-        return elem;
+    if (n == NULL) {
+        set->root = set->first = newnode(elem);
+        set->size++;
+        return set->root->elem;
+    } else {
+        while (n != NULL) {
+            int cmp = set->cmpfunc(elem, n->elem);
+            if (cmp < 0) {
+                if (n->left == NULL) {
+                    n->left = addnode(set, prev, elem);
+                    return n->left->elem;
+                } else {
+                    n = n->left;
+                }
+            } else if (cmp > 0) {
+                if (n->right == NULL) {
+                    n->right = addnode(set, n, elem);
+                    return n->right->elem;
+                } else {
+                    prev = n;
+                    n = n->right;
+                }
+            } else {
+                /* Already contained */
+                return elem;
+            }
+        }
     }
-    return duplicate;
 }
 
 /*

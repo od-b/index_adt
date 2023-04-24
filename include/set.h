@@ -10,6 +10,40 @@
 struct set;
 typedef struct set set_t;
 
+/* --- NOTE ---
+ * 
+ * The first two of the following function declarations, namely set_tryget and set_tryadd,
+ * were not originally defined within the ADT and have been added to this header.
+ * 
+ * No modifications have been made to declarations existing within the provided precode.
+*/
+
+/*
+ * Search within the given set for an elem equal to the provided one,
+ * using the set cmpfunc as a measure of equality.
+ *
+ * If such an elem exists, returns it.
+ * Otherwise, returns NULL.
+ */
+void *set_get(set_t *set, void *elem);
+/* note: strictly nescessary to access struct members for a set of structs. */
+
+/*
+ * Try to add an elem to the given set. 
+ * Returns:
+ * a) The duplicate elem from within the set, if such an elem exists.
+ * b) the provided elem, if added sucessfully.
+ * c) NULL on error (e.g. out of memory)
+ * 
+ * To check whether the elem was added, compare the return value to the given elem.
+ * By some means other than the set cmpfunc. E.g. by comparing memory adresses.
+ */
+void *set_tryadd(set_t *set, void *elem);
+/* note: not strictly nescessary, as this information can be acquired by performing set_get followed by add,
+ * but can more than double the performance of that alternative - in many cases. ()
+ * performance by turning many operations into a single one. 
+*/
+
 /*
  * Creates a new set using the given comparison function
  * to compare elements of the set.
@@ -31,18 +65,6 @@ int set_size(set_t *set);
  * Adds the given element to the given set.
  */
 void set_add(set_t *set, void *elem);
-
-/*
- * Get an existing element from the set.
- * Returns NULL if set does not contain the element.
- */
-void *set_get(set_t *set, void *elem);
-
-/*
- * Try to add an element. If succesful, return value will be the given elem.
- * If elem is a duplicate, returns the duplicate elem.
- */
-void *set_put(set_t *set, void *elem);
 
 /*
  * Returns 1 if the given element is contained in

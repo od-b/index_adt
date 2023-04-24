@@ -41,7 +41,7 @@ const struct tag_mapping tag_mappings[] = {
     { "results", run_query }
 };
 
-#define NUM_TAGS (sizeof (tag_mappings) / sizeof (struct tag_mapping))
+#define NUM_TAGS (sizeof(tag_mappings) / sizeof(struct tag_mapping))
 
 struct mime_entry {
     const char *file_type;

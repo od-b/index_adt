@@ -216,7 +216,7 @@ static void post_add_balance(set_t *T, treenode_t *added_node) {
     }
 }
 
-void *set_put(set_t *tree, void *elem) {
+void *set_tryadd(set_t *tree, void *elem) {
     /* case: tree does not have a root yet */
     if (tree->size == 0) {
         treenode_t *root = malloc(sizeof(treenode_t));
@@ -291,7 +291,7 @@ void *set_put(set_t *tree, void *elem) {
 
 void set_add(set_t *set, void *elem) {
     /* to comply with the header */
-    set_put(set, elem);
+    set_tryadd(set, elem);
 }
 
 /* -------------------------Iteration----------------------------*/
@@ -406,10 +406,10 @@ set_t *set_union(set_t *a, set_t *b) {
 
     void *elem;
     while ((elem = set_next(iter_a)) != NULL) {
-        set_put(c, elem);
+        set_add(c, elem);
     }
     while ((elem = set_next(iter_b)) != NULL) {
-        set_put(c, elem);
+        set_add(c, elem);
     }
 
     // clean up
@@ -434,7 +434,7 @@ set_t *set_intersection(set_t *a, set_t *b) {
     void *elem_a;
     while ((elem_a = set_next(iter_a)) != NULL) {
         // if set b contains elem from set a, add it to c
-        if (set_contains(b, elem_a)) set_put(c, elem_a);
+        set_add(c, elem_a);
     }
 
     // clean up
@@ -458,7 +458,7 @@ set_t *set_difference(set_t *a, set_t *b) {
     void *elem_a;
     while ((elem_a = set_next(iter_a)) != NULL) {
         // if set b does NOT contain elem from set a, add it to c
-        if (!set_contains(b, elem_a)) set_put(c, elem_a);
+        set_add(c, elem_a);
     }
 
     // clean up

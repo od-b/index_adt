@@ -3,7 +3,7 @@
  * Steffen Viken Valvaag <steffenv@cs.uit.no> 
  * Magnus Stenhaug <magnus.stenhaug@uit.no> 
  * Erlend Helland Graff <erlend.h.graff@uit.no> 
-*/
+ */
 
 #include "common.h"
 #include "list.h"

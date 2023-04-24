@@ -217,7 +217,7 @@ static void send_results(FILE *f, char *query, list_t *results) {
     fprintf(f, "</ol>\n");
 }
 
-static void _p_processed_query(char *query, list_t *tokens) {
+static void print_all_tokens(char *query, list_t *tokens) {
     /* print query, query as list && processed spaced plaintext */
     printf("query \t\t= '%s'\n", query);
     list_iter_t *p_process_iter = list_createiter(tokens);
@@ -226,7 +226,7 @@ static void _p_processed_query(char *query, list_t *tokens) {
     int i = 0, n = 0;
     p_list_str[i++] = '[';
 
-    /* may the lord forgive me for what i'm about to do */
+    /* ignore this abomination */
     while ((term = list_next(p_process_iter)) != NULL) {
         if (((n > 0) && ((p_str[n-1] != ')') && (p_str[n-1] != '(') && (term[0] != ')')))
             || ((strcmp(term, "AND") == 0) || (strcmp(term, "OR") == 0) || (strcmp(term, "ANDNOT") == 0))) {
@@ -261,7 +261,7 @@ static void run_query(FILE *f, char *query) {
         goto end;
 
     if (PINFO)
-        _p_processed_query(query, tokens);
+        print_all_tokens(query, tokens);
 
     result = index_query(idx, tokens, &errmsg);
 
@@ -278,7 +278,6 @@ static void run_query(FILE *f, char *query) {
     while (list_hasnext(iter)) {
         free(list_next(iter));
     }
-
     list_destroyiter(iter);
 
 end:

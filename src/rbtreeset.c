@@ -14,8 +14,8 @@
 
 /*
  * Implementation of a Red-Black BST. Inorder iterator with no list, stack or queue.
- * Traversal is done iteratively as this proved to be slightly faster through testing.
- * (exception being tree_destroy, which is only performed once per tree)
+ * Traversal is done iteratively as this proved to be slightly faster in initial testing.
+ * (exception being tree_destroy, which is only performed once per tree, so who cares about that)
 */
 
 
@@ -32,7 +32,7 @@ struct treenode {
 
 typedef struct set {
     treenode_t *root;
-    /* The sentinel-node (NIL) functions as a 'colored NULL-pointer' for leaf nodes 
+    /* The sentinel-node (NIL) functions as a 'NULL-pointer' for leaf nodes,
      * eliminates a lot of edge-case conditions for the various rotations, etc. */
     treenode_t *NIL;
     cmpfunc_t cmpfunc;
@@ -89,7 +89,7 @@ void set_destroy(set_t *tree) {
 /* ---------------Insertion, searching, rotation----------------- */
 
 /* rotate nodes counter-clockwise */
-static void rotate_left(set_t *tree, treenode_t *a) {
+inline static void rotate_left(set_t *tree, treenode_t *a) {
     treenode_t *b = a->right;
     treenode_t *c = a->right->left;
 
@@ -111,7 +111,7 @@ static void rotate_left(set_t *tree, treenode_t *a) {
 }
 
 /* rotate nodes clockwise */
-static void rotate_right(set_t *tree, treenode_t *a) {
+inline static void rotate_right(set_t *tree, treenode_t *a) {
     treenode_t *b = a->left;
     treenode_t *c = a->left->right;
 
@@ -174,7 +174,7 @@ void *set_get(set_t *tree, void *elem) {
 }
 
 /* balance the tree after adding a node */
-static void post_add_balance(set_t *T, treenode_t *added_node) {
+inline static void post_add_balance(set_t *T, treenode_t *added_node) {
     int_fast8_t curr_is_leftchild, par_is_leftchild;
     treenode_t *curr, *par, *unc, *gp;
 
@@ -301,54 +301,6 @@ typedef struct set_iter {
     treenode_t *node;
 } set_iter_t;
 
-/* 
- * Morris traversal implementation
- * Works by creating 'links' between a subtrees 'far right leaf' and (sub)root,
- * through temporary alteration of the tree leafs.
- * returns the next node from where iter->node is, from an inorder standpoint
- */
-static treenode_t *next_node_inorder(set_iter_t *iter) {
-    treenode_t *curr, *ret, *NIL;
-    NIL = iter->set->NIL;
-
-    if (iter->node == NIL) return NIL;
-    curr = iter->node;
-    ret = NIL;          // node to be returned
-
-    while (ret == NIL) {
-        if (curr->left == NIL) {
-            // can't move further left in current subtree, move right
-            ret = curr;
-            curr = curr->right;
-        } else {
-            // ... curr has a left child
-            // create a predecessor pointer (pre), starting at currents left child
-            treenode_t *pre = curr->left;
-            // traverse right with pre until we encounter either NIL or curr
-            while (pre->right != NIL && pre->right != curr) {
-                pre = pre->right;
-            }
-            // Determine if we hit a sentinel and need to form a new link,
-            // Or whether we have already used the link using curr
-            if (pre->right == NIL) {
-                // We have reached a leaf, 
-                // link it with curr before moving curr pointer left
-                pre->right = curr;
-                curr = curr->left;
-            } else {
-                // ... pre->right == curr
-                // Delete the link and move curr pointer right
-                pre->right = NIL;
-                ret = curr;
-                curr = curr->right;
-            }
-        }
-    }
-    /* increment iter to the next node */
-    iter->node = curr;
-    return ret;
-}
-
 set_iter_t *set_createiter(set_t *set) {
     set_iter_t *new_iter = malloc(sizeof(set_iter_t));
     if (new_iter == NULL) {
@@ -378,9 +330,49 @@ void set_destroyiter(set_iter_t *iter) {
 }
 
 void *set_next(set_iter_t *iter) {
-    treenode_t *curr = next_node_inorder(iter);
-    /* if end of tree is reached, curr->elem will be NULL */
-    return curr->elem;
+    if (iter->node == iter->set->NIL) {
+        return NULL;
+    }
+
+    /* Morris traversal implementation
+     * Works by creating 'paths' between a subtrees 'far right leaf' and (sub)root,
+     * through temporary alteration of the tree leaves' ->right pointer.
+    */
+
+    treenode_t *N = iter->node;          // alias for iter->node.
+    treenode_t *ret_N = iter->set->NIL;  // set to a non->NIL node when iter->node has moved to the next inorder
+
+    while (ret_N == iter->set->NIL) {
+        if (N->left == iter->set->NIL) {
+            /* can't traverse further left in current subtree, so move right */
+            ret_N = N;
+            N = N->right;
+        } else {
+            /* N has a left child. create a predecessor pointer, P, starting at the left child.*/
+            treenode_t *P = N->left;
+
+            /* Traverse right with P go right untill we hit a leaf or *N */
+            while ((P->right != iter->set->NIL) && (P->right != N)) {
+                P = P->right;
+            }
+            /* Determine if we hit *N, or if we and need to create a new path */
+            if (P->right == iter->set->NIL) {
+                /* set the pointer at leaf->right to point to N, then move N left */
+                P->right = N;
+                N = N->left;
+            } else {
+                /* we have previously traversed the path using N. Destroy the path and move N right */
+                P->right = iter->set->NIL;
+                ret_N = N;
+                N = N->right;
+            }
+        }
+    }
+
+    /* increment iter to the next node, then return */
+    iter->node = N;
+
+    return ret_N;
 }
 
 int set_hasnext(set_iter_t *iter) {

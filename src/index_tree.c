@@ -34,24 +34,26 @@ typedef struct index {
 } index_t;
 
 
-/* --- COMPARISON | HELPER FUNCTIONS --- */
+/* --- COMPARISON | HELPER FUNCTIONS --- 
+ * TODO: Test if inline improves performance, if yes, by how much and is it worth the memory tradeoff
+*/
 
 /* compares two i_path_t objects by their ->path */
-int compare_i_paths_by_string(i_path_t *a, i_path_t *b) {
+inline int compare_i_paths_by_string(i_path_t *a, i_path_t *b) {
     return strcmp(a->path, b->path);
 }
 
 /* compares two i_word_t objects by their ->word */
-int compare_i_words_by_string(i_word_t *a, i_word_t *b) {
+inline int compare_i_words_by_string(i_word_t *a, i_word_t *b) {
     return strcmp(a->word, b->word);
 }
 
 /* compares two i_word_t objects by how many files(i_paths) they appear in */
-int compare_i_words_by_n_occurances(i_word_t *a, i_word_t *b) {
+inline int compare_i_words_by_n_occurances(i_word_t *a, i_word_t *b) {
     return (set_size(a->i_paths_with_word) - set_size(b->i_paths_with_word));
 }
 
-int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
+inline int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
     return (a->score - b->score);
 }
 
@@ -63,6 +65,18 @@ static i_word_t *index_search(index_t *index, char *word) {
     i_word_t *search_result = set_get(index->i_words, index->search_word);
     index->search_word->word = NULL;
     return search_result;
+}
+
+static void print_arr(int *arr, int n) {
+    for (int i = 0; i < n; i++) {
+        // printf("%d:  %d\n", i, arr[i]);
+        printf("%d", arr[i]);
+        if (i == n-1) {
+            printf("\n");
+        } else {
+            printf(", ");
+        }
+    }
 }
 
 /* --- CREATION | DESTRUCTION --- */
@@ -124,8 +138,6 @@ index_t *index_create() {
 
     new_index->search_word->word = NULL;
     new_index->search_word->i_paths_with_word = NULL;
-
-    /* strdup calls malloc so should technically call != NULL before adding, but it feels like overkill. */
 
     return new_index;
 }
@@ -271,27 +283,6 @@ void index_addpath(index_t *index, char *path, list_t *words) {
  * not certain if cluttering the global namespace like this is a bad idea, so defined as 'OP_x'
 */
 
-static void print_arr(int *arr, int n) {
-    for (int i = 0; i < n; i++) {
-        // printf("%d:  %d\n", i, arr[i]);
-        printf("%d", arr[i]);
-        if (i == n-1) {
-            printf("\n");
-        } else {
-            printf(", ");
-        }
-    }
-}
-
-enum token_type_t {
-    OP_ANDNOT = 1,
-    OP_AND = 2,
-    OP_OR = 3,
-    WORD = 0,
-    P_OPEN = -2,
-    P_CLOSE = -1
-};
-
 struct query;
 typedef struct query query_t;
 
@@ -305,78 +296,53 @@ struct query {
     i_word_t *word;
 };
 
-static int token_type(char *token) {
-    if (isupper(token[0])) {
-        if (strcmp(token, "OR") == 0) {
-            return OP_OR;
-        } else if (strcmp(token, "AND") == 0) {
-            return OP_AND;
-        }
-        return OP_ANDNOT;
-    } else if (token[0] == '(') {
-        return P_OPEN;
-    } else if (token[0] == ')') {
-        return P_OPEN;
-    }
-    return WORD;
-}
 
-static query_t *group_queries(index_t *index, list_t *tokens, char **errmsg) {
-    list_iter_t *iter = list_createiter(tokens);
-    if (iter == NULL) {
-        return NULL;
-    }
+enum operator_types {
+    OP_ANDNOT = 1,
+    OP_AND = 2,
+    OP_OR = 3
+};
 
+
+static query_t *process_tokens(index_t *index, list_t *tokens, char **errmsg) {
     int depth = 0;
-    int tok_type;
-    char *token;
+    char *tok;
 
     query_t *prev_word = NULL;
     query_t *curr_operator = NULL;
     query_t *prev_operator = NULL;
 
-    while ((token = list_next(iter)) != NULL) {
+    while ((tok = list_next(tokens)) != NULL) {
 
-        if (token[0] == ')') {
+        if (tok[0] == ')') {
             depth--;
-        } else if (token[0] == '(') {
+        } else if (tok[0] == '(') {
             depth++;
         } else {
             query_t *query = malloc(sizeof(query_t));
             query->depth = depth;
+            query->word = NULL;
 
-            if (isupper(token[0])) {
-                if (strcmp(token, "OR") == 0) {
-                    query->operator = OP_OR;
-                } else if (strcmp(token, "AND") == 0) {
-                    query->operator = OP_AND;
-                } else {
-                    query->operator = OP_ANDNOT;
-                }
-                query->word = NULL;
-            } else {
-                query->word = index_search(index, token);   /* NULL if not indexed, which an operator must check. */
+            /* check if token is an operator */
+            if (islower(tok[0])) {
+                query->word = index_search(index, tok);   /* NULL if not indexed, which an operator must check. */
                 query->left = NULL;
                 query->right = NULL;
                 query->parent = curr_operator;
+            } else if (strcmp(tok, "OR") == 0) {
+                query->operator = OP_OR;
+            } else if (strcmp(tok, "AND") == 0) {
+                query->operator = OP_AND;
+            } else if (strcmp(tok, "ANDNOT") == 0) {
+                query->operator = OP_ANDNOT;
+            } else {
+                ERROR_PRINT("unrecognized token '%s'\n", tok);
             }
         }
+        free(tok);
     }
-    list_destroyiter(iter);
-
-    /* 
-        `(a AND (b OR c)) ANDNOT (d OR e)` 
-        0, 0,  1,  0, 0, 2,  0, 0, 0,   -1,   0, 0, 1, 0, 0
-        (  a  AND  (  b  OR  c  )  )  ANDNOT  (  d  OR  e  )
-    */
-
-    /* create bottom most operator query
-     * if there are several at equal depth, pick the left most one.
-     * 
-    */
 
     return NULL;
-
 }
 
 static void print_queries(query_t *leftmost) {
@@ -409,9 +375,7 @@ static void destroy_queries(query_t *leftmost) {
 }
 
 list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
-    query_t *leftmost_query = group_queries(index, tokens, errmsg);
-
-    
+    query_t *leftmost_query = process_tokens(index, tokens, errmsg);
 
     *errmsg = "valid query.";
     destroy_queries(leftmost_query);

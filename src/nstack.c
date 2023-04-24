@@ -3,7 +3,7 @@
  * allows peeking and offers plate cleanup, although only through 'free'.
 */
 
-#include "pstack.h"
+#include "nstack.h"
 #include "printing.h"
 
 #include <stdlib.h>
@@ -16,13 +16,13 @@ struct plate {
     plate_t *next;
 };
 
-struct pstack {
+struct nstack {
     int height;
     plate_t *top;
 };
 
-pstack_t *pstack_create() {
-    pstack_t *stack = malloc(sizeof(pstack_t));
+nstack_t *nstack_create() {
+    nstack_t *stack = malloc(sizeof(nstack_t));
     if (stack == NULL) {
         ERROR_PRINT("out of memory");
         return NULL;
@@ -30,9 +30,10 @@ pstack_t *pstack_create() {
 
     stack->height = 0;
     stack->top = NULL;
+    return stack;
 }
 
-void pstack_destroy(pstack_t *stack) {
+void nstack_destroy(nstack_t *stack) {
     plate_t *p;
     while (stack->top != NULL) {
         p = stack->top;
@@ -42,11 +43,10 @@ void pstack_destroy(pstack_t *stack) {
     free(stack);
 }
 
-void *pstack_push(pstack_t *stack, void *elem) {
+void nstack_push(nstack_t *stack, void *elem) {
     plate_t *p = malloc(sizeof(plate_t));
     if (p == NULL) {
         ERROR_PRINT("out of memory");
-        return NULL;
     }
     p->elem = elem;
     p->next = stack->top;
@@ -54,7 +54,7 @@ void *pstack_push(pstack_t *stack, void *elem) {
     stack->height++;
 }
 
-void *pstack_pop(pstack_t *stack) {
+void *nstack_pop(nstack_t *stack) {
     if (stack->top == NULL) {
         return NULL;
     }
@@ -67,7 +67,7 @@ void *pstack_pop(pstack_t *stack) {
     return elem;
 }
 
-void *pstack_peek(pstack_t *stack, int depth) {
+void *nstack_peek(nstack_t *stack, int depth) {
     plate_t *p = stack->top;
     if (p == NULL) {
         return NULL;
@@ -78,11 +78,11 @@ void *pstack_peek(pstack_t *stack, int depth) {
     return p->elem;
 }
 
-int pstack_height(pstack_t *stack) {
+int nstack_height(nstack_t *stack) {
     return stack->height;
 }
 
-void pstack_cleanplates(pstack_t *stack) {
+void nstack_cleanplates(nstack_t *stack) {
     plate_t *p;
     while (stack->top != NULL) {
         p = stack->top;

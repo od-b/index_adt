@@ -7,7 +7,7 @@
 #include "common.h"
 #include "printing.h"
 #include "set.h"
-#include "pstack.h"
+#include "nstack.h"
 #include "map.h"
 
 #include <ctype.h>
@@ -221,15 +221,15 @@ void index_addpath(index_t *index, char *path, list_t *words) {
 
     /* sort the list of words to skip duplicate words from the current list,
      * without having to search the entire main set of indexed words */
-    list_sort(words);
+    // list_sort(words);
 
-    char *word = NULL, *prev_word = NULL;
+    char *word;
 
     /* iterate over all words in the provided list */
     while ((word = list_next(words_iter)) != NULL) {
 
-        /* skip all duplicate words within the current list of words */
-        if ((prev_word == NULL) || (strcmp(word, prev_word) != 0)) {
+        // /* skip all duplicate words within the current list of words */
+        // if ((prev_word == NULL) || (strcmp(word, prev_word) != 0)) {
 
             /* try to add the word to the index, using search_word as a buffer. */
             index->search_word->word = word;
@@ -261,12 +261,12 @@ void index_addpath(index_t *index, char *path, list_t *words) {
             /* add word to the i_paths' set of words */
             set_add(new_i_path->i_words_at_path, i_word);
 
-        } else {
-            /* duplicate word within the current list of words, free and continue to next word. */
-            free(word);
-        }
-
-        prev_word = word;
+        // } else {
+        //     // printf("[%s] %s ", path, word);
+        //     /* duplicate word within the current list of words, free and continue to next word. */
+        //     free(word);
+        // }
+        // prev_word = word;
     }
     list_destroyiter(words_iter);
 }
@@ -289,36 +289,43 @@ const int OP_AND = 2;
 const int OP_OR = 3;
 const int WORD = 0;
 
-static int token_type(char *token) {
-    if (token[0] == '(')
-        return P_OPEN;
-    else if (token[0] == ')')
-        return P_CLOSE;
-    else if (strcmp(token, "OR") == 0)
-        return OP_OR;
-    else if (strcmp(token, "AND") == 0)
-        return OP_AND;
-    else if (strcmp(token, "ANDNOT") == 0)
-        return OP_ANDNOT;
-    return WORD;
-}
-
 struct qnode;
 typedef struct qnode qnode_t;
 
 struct qnode {
     i_word_t *i_word;
+    char *token;
     int depth;
     int pos;
-    int type;
+    int id;
     qnode_t *left;
     qnode_t *right;
 };
 
+static void print_query(qnode_t *leftmost) {
+    qnode_t *n = leftmost;
+    printf("\n");
+    while (n != NULL) {
+        if (n->i_word != NULL) {
+            printf("%1s[ i ] %-13s: d=%d\n", "", n->i_word->word, n->depth);
+        } else {
+            if (n->id < 0) {
+                printf("[ %d ] %-13s: d=%d\n", n->id, n->token, n->depth);
+            } else {
+                printf("%1s[ %d ] %-13s: d=%d\n", "", n->id, n->token, n->depth);
+            }
+        }
+        n = n->right;
+    }
+}
+
 static qnode_t *create_query_nodes(index_t *index, list_t *query, char **errmsg) {
     qnode_t *leftmost = NULL, *prev;
-    int tok_type, depth = 0;
+    int depth = 0;
     char *token;
+
+    int n_closed_pars = 0;
+    nstack_t *par_stack = nstack_create();
 
     while ((token = list_popfirst(query)) != NULL) {
         qnode_t *node = malloc(sizeof(qnode_t));
@@ -327,26 +334,37 @@ static qnode_t *create_query_nodes(index_t *index, list_t *query, char **errmsg)
             return NULL;
         }
         node->i_word = NULL;
+        node->token = token;
+        node->depth = depth;
 
         if (token[0] == '(') {
-            node->type = P_OPEN;
+            node->id = P_OPEN;
+            nstack_push(par_stack, node);
             depth++;
         } else if (token[0] == ')') {
-            node->type = P_CLOSE;
-            node->depth = 1;
+            node->id = P_CLOSE;
+            qnode_t *prev_par = nstack_peek(par_stack, 0);
+            if ((prev_par != NULL) && (prev_par->id == P_OPEN)) {
+                /* assign matching integers to pairs of parantheses */
+                nstack_pop(par_stack);
+                n_closed_pars--;
+                prev_par->id = node->id = n_closed_pars;
+            } else {
+                nstack_push(par_stack, node);
+            }
+            node->depth--;
             depth--;
         } else if (strcmp(token, "OR") == 0) {
-            node->type = OP_OR;
+            node->id = OP_OR;
         } else if (strcmp(token, "AND") == 0) {
-            node->type = OP_AND;
+            node->id = OP_AND;
         } else if (strcmp(token, "ANDNOT") == 0) {
-            node->type = OP_ANDNOT;
+            node->id = OP_ANDNOT;
         } else {
-            node->type = WORD;
+            node->id = WORD;
             node->i_word = index_search(index, token);
         }
 
-        node->depth = depth;
         node->right = NULL;
 
         if (leftmost == NULL) {
@@ -359,46 +377,83 @@ static qnode_t *create_query_nodes(index_t *index, list_t *query, char **errmsg)
         prev = node;
     }
 
+    int unmatched_pars = nstack_height(par_stack);
+    nstack_destroy(par_stack);
+
+    if (unmatched_pars != 0) {
+        *errmsg = "syntax error: unmatched parantheses";
+        return NULL;
+    }
+
     return leftmost;
 }
 
-static void print_query(qnode_t *leftmost) {
-    qnode_t *curr = leftmost;
-    while (curr != NULL) {
-        char *msg;
-        if (curr->i_word != NULL) {
-            msg = curr->i_word->word;
-        } else {
-            switch (curr->type) {
-                case P_OPEN:
-                    msg = "(";
-                case P_CLOSE:
-                    msg = ")";
-                case OP_ANDNOT:
-                    msg = "ANDNOT";
-                case OP_AND:
-                    msg = "AND";
-                case OP_OR:
-                    msg = "OR";
-            }
-        }
-        printf("%s: depth=%d, type=%d\n", msg, curr->depth, curr->type);
-        curr = curr->right;
-    }
+static set_t *eval_or(qnode_t *op_node);
+static set_t *eval_and(qnode_t *op_node);
+static set_t *eval_andnot(qnode_t *op_node);
+
+static list_t *parse_query(index_t *index, qnode_t *leftmost, char **errmsg) {
+    list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
+    print_query(leftmost);
+    
 }
 
 list_t *index_query(index_t *index, list_t *query, char **errmsg) {
     qnode_t *leftmost = create_query_nodes(index, query, errmsg);
-    // list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
-    print_query(leftmost);
+
+    if (leftmost == NULL) {
+        /* todo: free qnodes */
+        return NULL;
+    }
+
+    list_t *results = parse_query(index, leftmost, errmsg);
+
+    if (results == NULL) {
+        /* todo: free qnodes */
+        return NULL;
+    }
+
     *errmsg = "valid query.";
     UNUSED(index_search);
     UNUSED(create_query_result);
     return NULL;
 }
 
+/* list_t *index_query(index_t *index, list_t *query, char **errmsg) {
+    list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
+    printf("indexed_words = %d\n", list_size(query));
+
+    // case for single term queries
+    if (list_size(query) == 1) {
+        char *term = list_popfirst(query);
+
+        if (results == NULL) {
+            return NULL;
+        }
+
+        i_word_t *search_result = index_search(index, term);
+        if (search_result != NULL) {
+            // iterate over i_paths that contain indexed word
+            set_iter_t *file_iter = set_createiter(search_result->i_paths_with_word);
+
+            double score = 0.0;
+            i_path_t *i_path;
+            while ((i_path = set_next(file_iter)) != NULL) {
+                score += 0.1;
+                list_addlast(results, create_query_result(i_path->path, score));
+            }
+            set_destroyiter(file_iter);
+
+            if (list_size(results) != 1) {
+                // sort results by score
+                list_sort(results);
+            }
+        }
+        free(term);
+        return results;
+    }
+} */
+
 
 /* make clean && make assert_index && lldb assert_index */
 /* make clean && make indexer && ./indexer data/cacm/ */
-/* cd code/C/eksamen23/exam_precode/ && make clean && make indexer && ./indexer data/cacm/  */
-

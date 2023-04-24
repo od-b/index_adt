@@ -337,13 +337,13 @@ void *set_next(set_iter_t *iter) {
      * through temporary alteration of the tree leaves' ->right pointer.
     */
 
-    treenode_t *N = iter->node;          // alias for iter->node.
-    treenode_t *ret_N = iter->set->NIL;  // set to a non->NIL node when iter->node has moved to the next inorder
+    treenode_t *N = iter->node;    // alias for iter->node.
+    void *next = NULL;             // elem to be returned
 
-    while (ret_N == iter->set->NIL) {
+    while (next == NULL) {
         if (N->left == iter->set->NIL) {
             /* can't traverse further left in current subtree, so move right */
-            ret_N = N;
+            next = N->elem;
             N = N->right;
         } else {
             /* N has a left child. create a predecessor pointer, P, starting at the left child.*/
@@ -361,7 +361,7 @@ void *set_next(set_iter_t *iter) {
             } else {
                 /* we have previously traversed the path using N. Destroy the path and move N right */
                 P->right = iter->set->NIL;
-                ret_N = N;
+                next = N->elem;
                 N = N->right;
             }
         }
@@ -370,7 +370,7 @@ void *set_next(set_iter_t *iter) {
     /* increment iter to the next node, then return */
     iter->node = N;
 
-    return ret_N;
+    return next;
 }
 
 int set_hasnext(set_iter_t *iter) {

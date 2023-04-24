@@ -520,7 +520,7 @@ int http_server(unsigned short port, http_handler_t handler) {
     pthread_t threads[MAX_THREADS];
 
     setup_kill_signals();
-	
+
     /* Set all threads to NULL */
     memset(started, 0, sizeof(started));
 

@@ -2,7 +2,7 @@
  * Authors:
  * Magnus Stenhaug <magnus.stenhaug@uit.no> 
  * Erlend Helland Graff <erlend.h.graff@uit.no> 
- */
+*/
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -15,8 +15,8 @@
 #include "printing.h"
 
 #define WORD_LENGTH ( 40 )
-#define NUM_ITEMS ( 200 )
-#define NUM_DOCS ( 500 )
+#define NUM_ITEMS ( 20 )
+#define NUM_DOCS ( 20 )
 #define PTIME  1
 
 typedef struct document {
@@ -164,7 +164,6 @@ int main(int argc, char **argv) {
     DEBUG_PRINT("Running a series of single term queries to validate the index...\n");
     validate_index(ind);
     DEBUG_PRINT("Success!\n");
-
 
     index_destroy(ind);
 

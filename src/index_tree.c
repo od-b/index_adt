@@ -145,8 +145,6 @@ index_t *index_create() {
 }
 
 void index_destroy(index_t *index) {
-    ERROR_PRINT("hello.\n");
-
     i_path_t *curr_i_path;
     i_word_t *curr_i_word;
     set_iter_t *i_path_iter, *i_word_iter;

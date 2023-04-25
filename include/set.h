@@ -19,45 +19,45 @@ typedef struct set set_t;
 */
 
 /*
- * Search within the given set for an elem equal to the provided one,
- * using the set cmpfunc as a measure of equality.
- *
- * If such an elem exists, returns it.
+ * Search within the given set for an elem equal to the provided one.
+ * If an equal elem exists in the set, returns it. 
  * Otherwise, returns NULL.
  */
 void *set_get(set_t *set, void *elem);
-/* note: strictly nescessary to access struct members for a set of structs. */
+/* note: strictly nescessary to allow sets of structs compared by a struct member. */
 
 /*
- * Try to add an elem to the given set. 
- * Returns:
- * a) The duplicate elem from within the set, if such an elem exists.
- * b) the provided elem, if added sucessfully.
- * c) NULL on error (e.g. out of memory)
+ * Try to add a given elem to the given set. 
  * 
- * To check whether the elem was added, compare the return value to the given elem.
- * By some means other than the set cmpfunc. E.g. by comparing memory adresses.
+ * Returns:
+ * a) The `duplicate` elem from the set, if it exists.
+ * b) The provided elem, if added sucessfully.
+ * c) NULL, on error (e.g. out of memory).
+ * 
+ * To check whether the elem was added, compare the return 
+ * value or address to the one of the given elem.
  */
 void *set_tryadd(set_t *set, void *elem);
-/* note: not strictly nescessary, as this information can be acquired by performing set_get followed by add,
+/* note: 
+ * not strictly nescessary, as this information can be acquired by performing set_get followed by add,
  * but can more than double the performance of that alternative - in many cases. ()
  * performance by turning many operations into a single one. 
 */
 
 /*
- * Creates a new set using the given comparison function
- * to compare elements of the set.
+ * Creates a new set. The given cmpfunc will be used
+ * to compare elements added to the set.
  */
 set_t *set_create(cmpfunc_t cmpfunc);
 
 /*
- * Destroys the given set.  Subsequently accessing the set
+ * Destroys the given set. Subsequently accessing the set
  * will lead to undefined behavior.
  */
 void set_destroy(set_t *set);
 
 /*
- * Returns the size (cardinality) of the given set.
+ * Returns the cardinality of the given set.
  */
 int set_size(set_t *set);
 
@@ -68,7 +68,7 @@ void set_add(set_t *set, void *elem);
 
 /*
  * Returns 1 if the given element is contained in
- * the given set, 0 otherwise.
+ * the given set, otherwise returns 0.
  */
 int set_contains(set_t *set, void *elem);
 
@@ -76,6 +76,8 @@ int set_contains(set_t *set, void *elem);
  * Returns the union of the two given sets; the returned
  * set contains all elements that are contained in either
  * a or b.
+ * a->cmpfunc is used for comparison, and will be 
+ * inhereted by the returned set.
  */
 set_t *set_union(set_t *a, set_t *b);
 
@@ -83,6 +85,8 @@ set_t *set_union(set_t *a, set_t *b);
  * Returns the intersection of the two given sets; the
  * returned set contains all elements that are contained
  * in both a and b.
+ * a->cmpfunc is used for comparison, and will be 
+ * inhereted by the returned set.
  */
 set_t *set_intersection(set_t *a, set_t *b);
 
@@ -90,6 +94,8 @@ set_t *set_intersection(set_t *a, set_t *b);
  * Returns the set difference of the two given sets; the
  * returned set contains all elements that are contained
  * in a and not in b.
+ * a->cmpfunc is used for comparison, and will be 
+ * inhereted by the returned set.
  */
 set_t *set_difference(set_t *a, set_t *b);
 

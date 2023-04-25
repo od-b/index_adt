@@ -6,19 +6,22 @@
 
 
 /*
- * ----- REFERENCES -----
- *
- * The code within this file is an altered version of code used in an earlier assignment.
- * The code within this file is my own work.
+ * ----- README: REFERENCES & INFO -----
  * 
- * ----------------------
+ * A vast majority of the code within this file is code used in an earlier assignment.
+ * The code has been adapted to merge the tree and set implementation as done elsewhere in the precode,
+ * as opposed to having separate header files for tree.h / set.h.
+ * 
+ * All code and implementations contained within this file is my own work.
+ * 
+ * -------------------------------------
 */
 
 
+
 /*
- * Implementation of a Red-Black BST. Inorder iterator with no list, stack or queue.
- * Traversal is done iteratively as this proved to be slightly faster in initial testing.
- * (exception being tree_destroy, which is only performed once per tree, so who cares about that)
+ * Implementation of a Red-Black Binary Search Tree.
+ * The iterator is in-order, and uses no temporary list, stack or queue.
 */
 
 
@@ -177,7 +180,7 @@ void *set_get(set_t *tree, void *elem) {
 }
 
 /* balance the tree after adding a node */
-inline static void post_add_balance(set_t *T, treenode_t *added_node) {
+static void post_add_balance(set_t *T, treenode_t *added_node) {
     int_fast8_t curr_is_leftchild, par_is_leftchild;
     treenode_t *curr, *par, *unc, *gp;
 
@@ -207,8 +210,7 @@ inline static void post_add_balance(set_t *T, treenode_t *added_node) {
             if (par_is_leftchild != curr_is_leftchild) {
                 // rotate parent 'away'
                 (curr_is_leftchild) ? (rotate_right(T, par)) : (rotate_left(T, par));
-            }
-            else {
+            } else {
                 // rotate grandparent 'away'
                 (curr_is_leftchild) ? (rotate_right(T, gp)) : (rotate_left(T, gp));
                 // fix colors
@@ -314,7 +316,6 @@ set_iter_t *set_createiter(set_t *set) {
     return new_iter;
 }
 
-
 void set_destroyiter(set_iter_t *iter) {
     if (set_hasnext(iter)) {
         /* Finish the morris iterator process to avoid leaving any mutated leaves
@@ -384,11 +385,12 @@ int set_hasnext(set_iter_t *iter) {
 
 set_t *set_union(set_t *a, set_t *b) {
     if (a->cmpfunc != b->cmpfunc) {
-        ERROR_PRINT("sets must have the same cmpfunc\n");
+        DEBUG_PRINT("Warning: sets do not share cmpfunc, undefined behavior may occur.\n");
     }
-    set_t *c = set_create(a->cmpfunc);
+
     set_iter_t *iter_a = set_createiter(a);
     set_iter_t *iter_b = set_createiter(b);
+    set_t *c = set_create(a->cmpfunc);
 
     if (c == NULL || iter_a == NULL || iter_b == NULL) {
         ERROR_PRINT("out of memory\n");
@@ -412,49 +414,85 @@ set_t *set_union(set_t *a, set_t *b) {
 
 set_t *set_intersection(set_t *a, set_t *b) {
     if (a->cmpfunc != b->cmpfunc) {
-        ERROR_PRINT("sets must have the same cmpfunc\n");
+        DEBUG_PRINT("Warning: sets do not share cmpfunc, undefined behavior may occur.\n");
     }
-    set_t *c = set_create(a->cmpfunc);
+
     set_iter_t *iter_a = set_createiter(a);
+    set_iter_t *iter_b = set_createiter(b);
+    set_t *c = set_create(a->cmpfunc);
 
     if (c == NULL || iter_a == NULL) {
         ERROR_PRINT("error allocating memory @ set_difference");
     }
 
-    void *elem_a;
-    while ((elem_a = set_next(iter_a)) != NULL) {
-        // if set b contains elem from set a, add it to c
-        set_add(c, elem_a);
+    /* Merge the two trees
+     * Using the iterator from the two sets minimalizes comparisons by not using set_contains,
+     * as set_contains would have to traverse one of trees from its root node on every add.
+    */
+    void *elem_a = set_next(iter_a);
+    void *elem_b = set_next(iter_b);
+
+    while (elem_a != NULL && elem_b != NULL) {
+        if (c->cmpfunc(elem_a, elem_b) == 0) {
+            /* Both trees contain the elem. Add to c, then increment both iters */
+            set_add(c, elem_a);
+            elem_a = set_next(iter_a);
+            elem_b = set_next(iter_b);
+        } else if (c->cmpfunc(elem_a, elem_b) < 0) {
+            /* value of a is greater than b. Increment b. */
+            elem_b = set_next(iter_b);
+        } else {
+            /* value of b is greater than a. Increment a. */
+            elem_a = set_next(iter_a);
+        }
     }
 
-    // clean up
     set_destroyiter(iter_a);
+    set_destroyiter(iter_b);
 
-    // return set set_intersection
     return c;
 }
 
 set_t *set_difference(set_t *a, set_t *b) {
     if (a->cmpfunc != b->cmpfunc) {
-        ERROR_PRINT("sets must have the same cmpfunc\n");
+        DEBUG_PRINT("Warning: sets do not share cmpfunc, undefined behavior may occur.\n");
     }
-    set_t *c = set_create(a->cmpfunc);
+
     set_iter_t *iter_a = set_createiter(a);
+    set_iter_t *iter_b = set_createiter(b);
+    set_t *c = set_create(a->cmpfunc);
 
     if (c == NULL || iter_a == NULL) {
-        ERROR_PRINT("out of memory\n");
+        ERROR_PRINT("error allocating memory @ set_difference");
     }
 
-    void *elem_a;
-    while ((elem_a = set_next(iter_a)) != NULL) {
-        // if set b does NOT contain elem from set a, add it to c
-        set_add(c, elem_a);
+    /* Merge the two trees
+     * Using the iterator from the two sets minimalizes comparisons by not using set_contains,
+     * as set_contains would have to traverse one of trees from its root node on every add.
+    */
+    void *elem_a = set_next(iter_a);
+    void *elem_b = set_next(iter_b);
+
+    while (elem_a != NULL && elem_b != NULL) {
+        /* TODO: FIX THIS */
+        if (c->cmpfunc(elem_a, elem_b) == 0) {
+            /* Both trees contain the elem. Add to c, then increment both iters */
+            elem_a = set_next(iter_a);
+            elem_b = set_next(iter_b);
+        } else if (c->cmpfunc(elem_a, elem_b) < 0) {
+            set_add(c, elem_a);
+            /* value of a is greater than b. Increment b. */
+            elem_b = set_next(iter_b);
+        } else {
+            set_add(c, elem_b);
+            /* value of b is greater than a. Increment a. */
+            elem_a = set_next(iter_a);
+        }
     }
 
-    // clean up
     set_destroyiter(iter_a);
+    set_destroyiter(iter_b);
 
-    // return set difference
     return c;
 }
 
@@ -470,6 +508,7 @@ set_t *set_copy(set_t *set) {
 
     return copy;
 }
+
 
 
 /* debugging stuff */
@@ -508,3 +547,16 @@ set_t *set_copy(set_t *set) {
 void print_rbtreeset(set_t *set, printfunc_t printfunc) {
     print_tree(printfunc, set, set->root, 0);
 } */
+
+
+/*
+ * ----- README: REFERENCES & INFO -----
+ * 
+ * A vast majority of the code within this file is code used in an earlier assignment.
+ * The code has been adapted to merge the tree and set implementation as done elsewhere in the precode,
+ * as opposed to having separate header files for tree.h / set.h.
+ * 
+ * All code and implementations contained within this file is my own work.
+ * 
+ * -------------------------------------
+*/

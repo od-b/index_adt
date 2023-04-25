@@ -14,9 +14,9 @@
 #include "set.h"
 #include "printing.h"
 
-#define WORD_LENGTH ( 40 )
-#define NUM_ITEMS ( 20 )
-#define NUM_DOCS ( 20 )
+#define WORD_LENGTH ( 26 )
+#define NUM_ITEMS ( 200 )
+#define NUM_DOCS ( 4000 )
 #define PTIME  1
 
 typedef struct document {
@@ -79,7 +79,7 @@ void doc_destroy(document_t *doc) {
 
 /* Runs a series of queries and validates the index */
 void validate_index(index_t *ind) {
-    unsigned long long t_time = 0;
+    unsigned long long t_cumu = 0, t_start = 0;
 
     int i, hitCount;
     // set_t *w; // note: unused
@@ -100,15 +100,16 @@ void validate_index(index_t *ind) {
             term = (char *)set_next(iter);
             list_addfirst(query, term);
 
-            /* Run the query */
-            unsigned long long t_start;
-            if (PTIME) t_start = gettime();
+            if (PTIME) {
+                t_start = gettime();
+            }
 
             result = index_query(ind, query, &errmsg);
 
             if (PTIME) {
-                t_time = (gettime() - t_start);
+                t_cumu += (gettime() - t_start);
             }
+
             if (result == NULL) {
                 ERROR_PRINT("Query resulted in the following error: %s", errmsg);
             }
@@ -133,7 +134,12 @@ void validate_index(index_t *ind) {
     }
     list_destroy(query);
 
-    if (PTIME) printf("queries took a total of %llu μs\n", t_time);
+    if (PTIME) {
+        // printf("> Query cumu. time: %llu μs. [wordlen=%d, n_words=%d, n_docs=%d]\n", 
+        //     t_cumu, WORD_LENGTH, NUM_ITEMS, NUM_DOCS);
+        printf("> Query cumu. time: %llu ms. [wordlen=%d, n_words=%d, n_docs=%d]\n", 
+            t_cumu/1000, WORD_LENGTH, NUM_ITEMS, NUM_DOCS);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -144,6 +150,7 @@ int main(int argc, char **argv) {
 
     /* Create index */
     ind = index_create();
+
 
     /* Generate random documents */
     for (i = 0; i < NUM_DOCS; i++) {

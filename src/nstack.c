@@ -55,23 +55,26 @@ void nstack_push(nstack_t *stack, void *elem) {
 }
 
 void *nstack_pop(nstack_t *stack) {
-    if (stack->top == NULL) {
+    if (!stack->height) {
         return NULL;
     }
-    void *elem = stack->top->elem;
-    plate_t *new_top = stack->top->next;
-    free(stack->top);
 
-    stack->top = new_top;
+    plate_t *p = stack->top;
+    void *elem = p->elem;
+    stack->top = p->next;
+
+    free(p);
     stack->height--;
+
     return elem;
 }
 
 void *nstack_peek(nstack_t *stack, int depth) {
-    plate_t *p = stack->top;
-    if (p == NULL) {
+    if (!stack->height) {
         return NULL;
     }
+
+    plate_t *p = stack->top;
 
     for (int i = 0; (i < depth && p->next != NULL); p = p->next, i++);
 

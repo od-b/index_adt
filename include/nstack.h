@@ -15,7 +15,9 @@ void nstack_destroy(nstack_t *stack);
 
 void nstack_push(nstack_t *stack, void *elem);
 
-/* remove the top plate and return its elem */
+/* remove the top plate and return its elem.
+ * returns NULL if there are no plates left.
+*/
 void *nstack_pop(nstack_t *stack);
 
 /* return the elem at the given depth. 0 = top plate.

@@ -305,8 +305,20 @@ set_t *set_union(set_t *a, set_t *b) {
     treenode_t *na, *nb;
 
     if (a->cmpfunc != b->cmpfunc) {
-        ERROR_PRINT("union of incompatible sets");
-        return NULL;
+        /* 
+         * ERROR_PRINT("union of incompatible sets"); return NULL;
+         *
+         * ... what? 
+         * 
+         * This is simply not true, and the header does not mention equal cmpfuncs are required.
+         * The elements _could_ still be compatible for comparison through a->cmpfunc.
+         * e.g. strcmp and strcasecmp. Shouldn't it be the callers job to decide if elements are comparable?
+         * This would even throw an error in the case of one cmpfunc being `compare_strings`, which simply
+         * wraps `strcmp`, and the other being `strcmp`.
+         * 
+         * Replaced the error & return with a warning.
+        */
+        DEBUG_PRINT("Warning: sets do not share cmpfunc, undefined behavior may occur.\n");
     }
 
     /* Merge the two sets into a sorted list */
@@ -351,8 +363,10 @@ set_t *set_intersection(set_t *a, set_t *b) {
     treenode_t *na, *nb;
 
     if (a->cmpfunc != b->cmpfunc) {
-        ERROR_PRINT("intersection of incompatible sets");
-        return NULL;
+        /* 
+         * Replaced the error & return with a warning. See comment @ set_union.
+        */
+        DEBUG_PRINT("Warning: sets do not share cmpfunc, undefined behavior may occur.\n");
     }
 
     /* Merge the two sets into a sorted list,
@@ -383,8 +397,10 @@ set_t *set_intersection(set_t *a, set_t *b) {
 
 set_t *set_difference(set_t *a, set_t *b) {
     if (a->cmpfunc != b->cmpfunc) {
-        ERROR_PRINT("difference between incompatible sets");
-        return NULL;
+        /* 
+         * Replaced the error & return with a warning. See comment @ set_union.
+        */
+        DEBUG_PRINT("Warning: sets do not share cmpfunc, undefined behavior may occur.\n");
     }
 
     /* Merge the two sets into a sorted list,

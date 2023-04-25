@@ -52,12 +52,14 @@ int list_addfirst(list_t *list, void *elem);
 int list_addlast(list_t *list, void *elem);
 
 /*
- * Removes and returns the first element of the given list.
+ * Removes and returns the first element of the given list,
+ * or NULL on empty list.
  */
 void *list_popfirst(list_t *list);
 
 /*
- * Removes and returns the last element of the given list.
+ * Removes and returns the last element of the given list,
+ * or NULL on empty list.
  */
 void *list_poplast(list_t *list);
 

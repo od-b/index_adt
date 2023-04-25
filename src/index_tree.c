@@ -84,22 +84,6 @@ static void print_arr(int *arr, int n) {
 /* --- CREATION | DESTRUCTION --- */
 
 /*
- * initializes and returns a new query result 
- */
-static query_result_t *create_query_result(char *path, double score) {
-    query_result_t *result = malloc(sizeof(query_result_t));
-    if (result == NULL) {
-        ERROR_PRINT("out of memory");
-        return NULL;
-    }
-
-    result->path = path;
-    result->score = score;
-
-    return result;
-}
-
-/*
  * returns a newly created i_path, using the given path.
  * creates an empty set at the i_path->i_words_at_path, with the cmpfunc compare_i_words_by_string
  */
@@ -140,6 +124,8 @@ index_t *index_create() {
 
     new_index->search_word->word = NULL;
     new_index->search_word->i_paths_with_word = NULL;
+
+    UNUSED(print_arr);
 
     return new_index;
 }
@@ -319,39 +305,76 @@ static void print_query(qnode_t *leftmost) {
     }
 }
 
-static qnode_t *create_query_nodes(index_t *index, list_t *query, char **errmsg) {
-    qnode_t *leftmost = NULL, *prev;
-    int depth = 0;
-    char *token;
+static void destroy_qnodes(qnode_t *leftmost) {
+    qnode_t *tmp, *curr = leftmost;
 
-    int n_closed_pars = 0;
+    while (curr != NULL) {
+        tmp = curr;
+        curr = curr->right;
+        free(tmp->token);
+        free(tmp);
+    }
+}
+
+/*
+ * Purpose: Grammar control, paranthesis matching, token to node conversion
+ * Todo: Grammar control
+ */
+static qnode_t *process_query(index_t *index, list_t *query, char **errmsg) {
+    qnode_t *leftmost = NULL, *prev = NULL, *node = NULL;
+    int depth = 0, par_set_id = -1;
+
     nstack_t *par_stack = nstack_create();
+    if (par_stack == NULL) {
+        *errmsg = "out of memory";
+        goto error;
+    }
 
+    char *token;
     while ((token = list_popfirst(query)) != NULL) {
-        qnode_t *node = malloc(sizeof(qnode_t));
+        node = malloc(sizeof(qnode_t));
         if (node == NULL) {
-            ERROR_PRINT("out of memory");
-            return NULL;
+            free(token);
+            *errmsg = "out of memory";
+            goto error;
         }
-        node->i_word = NULL;
+
         node->token = token;
         node->depth = depth;
+        node->i_word = NULL;
 
         if (token[0] == '(') {
             node->id = P_OPEN;
             nstack_push(par_stack, node);
             depth++;
         } else if (token[0] == ')') {
+            /* perform grammar control upon each closed pair of paranthesis */
             node->id = P_CLOSE;
-            qnode_t *prev_par = nstack_peek(par_stack, 0);
-            if ((prev_par != NULL) && (prev_par->id == P_OPEN)) {
-                /* assign matching integers to pairs of parantheses */
-                nstack_pop(par_stack);
-                n_closed_pars--;
-                prev_par->id = node->id = n_closed_pars;
-            } else {
-                nstack_push(par_stack, node);
+            qnode_t *par_match = nstack_pop(par_stack);
+
+            if (prev == NULL || par_match == NULL) {
+                *errmsg = "Unmatched closing paranthesis";
+                goto error;
             }
+            if (prev == par_match) {
+                *errmsg = "Parantheses without query";
+                goto error;
+            }
+            if (prev->id != WORD) {
+                qnode_t *lterm = prev;
+                /* verify that first non-paranthesis on left is a not an operator */
+                while ((lterm->left != NULL) && (lterm->id <= 0)) {
+                    lterm = lterm->left;
+                }
+                if (lterm->id != WORD) {
+                    *errmsg = "Operators require adjacent terms";
+                    goto error;
+                }
+            }
+
+            /* paranthesis syntax should be valid. Assign an id to the matching parantheses */
+            par_match->id = node->id = par_set_id;
+            par_set_id--;
             node->depth--;
             depth--;
         } else if (strcmp(token, "OR") == 0) {
@@ -363,6 +386,11 @@ static qnode_t *create_query_nodes(index_t *index, list_t *query, char **errmsg)
         } else {
             node->id = WORD;
             node->i_word = index_search(index, token);
+        }
+
+        if ((prev != NULL) && ((prev->id > 0) && (node->id > 0))) {
+            *errmsg = "Adjacent operators";
+            goto error;
         }
 
         node->right = NULL;
@@ -377,82 +405,83 @@ static qnode_t *create_query_nodes(index_t *index, list_t *query, char **errmsg)
         prev = node;
     }
 
-    int unmatched_pars = nstack_height(par_stack);
+    if (nstack_height(par_stack) != 0) {
+        *errmsg = "unmatched opening paranthesis";
+        goto error;
+    }
+
     nstack_destroy(par_stack);
-
-    if (unmatched_pars != 0) {
-        *errmsg = "syntax error: unmatched parantheses";
-        return NULL;
-    }
-
     return leftmost;
-}
 
-static set_t *eval_or(qnode_t *op_node);
-static set_t *eval_and(qnode_t *op_node);
-static set_t *eval_andnot(qnode_t *op_node);
-
-static list_t *parse_query(index_t *index, qnode_t *leftmost, char **errmsg) {
-    list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
-    print_query(leftmost);
-    
-}
-
-list_t *index_query(index_t *index, list_t *query, char **errmsg) {
-    qnode_t *leftmost = create_query_nodes(index, query, errmsg);
-
-    if (leftmost == NULL) {
-        /* todo: free qnodes */
-        return NULL;
+error:
+    if (par_stack != NULL) {
+        nstack_destroy(par_stack);
     }
-
-    list_t *results = parse_query(index, leftmost, errmsg);
-
-    if (results == NULL) {
-        /* todo: free qnodes */
-        return NULL;
+    if (leftmost != NULL) {
+        destroy_qnodes(leftmost);
     }
-
-    *errmsg = "valid query.";
-    UNUSED(index_search);
-    UNUSED(create_query_result);
+    if (node != NULL) {
+        /* may not have been linked to the chain yet. */
+        free(node);
+    }
     return NULL;
 }
 
-/* list_t *index_query(index_t *index, list_t *query, char **errmsg) {
-    list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
-    printf("indexed_words = %d\n", list_size(query));
-
-    // case for single term queries
-    if (list_size(query) == 1) {
-        char *term = list_popfirst(query);
-
-        if (results == NULL) {
-            return NULL;
-        }
-
-        i_word_t *search_result = index_search(index, term);
-        if (search_result != NULL) {
-            // iterate over i_paths that contain indexed word
-            set_iter_t *file_iter = set_createiter(search_result->i_paths_with_word);
-
-            double score = 0.0;
-            i_path_t *i_path;
-            while ((i_path = set_next(file_iter)) != NULL) {
-                score += 0.1;
-                list_addlast(results, create_query_result(i_path->path, score));
-            }
-            set_destroyiter(file_iter);
-
-            if (list_size(results) != 1) {
-                // sort results by score
-                list_sort(results);
-            }
-        }
-        free(term);
-        return results;
+/* for each path @ to the given indexed word, create and add query_result(s) to results */
+static void add_result(list_t *results, i_word_t *i_word) {
+    set_iter_t *path_iter = set_createiter(i_word->i_paths_with_word);
+    double score = 0.0;
+    i_path_t *i_path;
+    if (path_iter == NULL) {
+        ERROR_PRINT("out of memory");
     }
-} */
+
+    while ((i_path = set_next(path_iter)) != NULL) {
+        query_result_t *q_result = malloc(sizeof(query_result_t));
+        if (q_result == NULL) {
+            ERROR_PRINT("out of memory");
+        }
+        q_result->path = i_path->path;
+        q_result->score = score;
+        score += 0.1;
+        list_addlast(results, q_result);
+    }
+    set_destroyiter(path_iter);
+}
+
+// static set_t *eval_or(qnode_t *op_node);
+// static set_t *eval_and(qnode_t *op_node);
+// static set_t *eval_andnot(qnode_t *op_node);
+
+static void parse_query(index_t *index, list_t *results, qnode_t *leftmost) {
+    print_query(leftmost);
+
+    UNUSED(index);
+    UNUSED(results);
+    UNUSED(results);
+}
+
+list_t *index_query(index_t *index, list_t *query, char **errmsg) {
+    qnode_t *leftmost = process_query(index, query, errmsg);
+    if (leftmost == NULL) {
+        /* errmsg will have been set by process query. */
+        return NULL;
+    }
+
+    list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
+
+    if (leftmost->right == NULL) {
+        i_word_t *search_res = leftmost->i_word;
+        if (search_res != NULL) {
+            add_result(results, search_res);
+        }
+        free(leftmost);
+    } else {
+        parse_query(index, results, leftmost);
+    }
+
+    return results;
+}
 
 
 /* make clean && make assert_index && lldb assert_index */

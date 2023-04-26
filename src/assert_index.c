@@ -38,7 +38,7 @@ char *generate_string(unsigned int *seed) {
     /* Generate a random string of characters */
     s = calloc(sizeof(char), len + 1);
     for (i = 0 ; i < len; i++) {
-        s[i] = 'a' + (rand_r(seed) % ('z' - 'a' + 1));  // added + 1 so all chars are included
+        s[i] = 'a' + (rand_r(seed) % ('z' - 'a'));
     }
 
     return s;

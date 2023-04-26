@@ -12,10 +12,10 @@ typedef struct set set_t;
 
 /* --- NOTE ---
  * 
- * The first two of the following function declarations, namely set_tryget and set_tryadd,
+ * The first three of the following function declarations, namely set_get, set_tryadd and set_destroy_elems,
  * were not originally defined within the ADT and have been added to this header.
  * 
- * No modifications have been made to declarations existing within the provided precode.
+ * No modifications have been made to existing declarations the provided precode.
 */
 
 /*
@@ -42,6 +42,15 @@ void *set_tryadd(set_t *set, void *elem);
  * not strictly nescessary, as this information can be acquired by performing set_get followed by add,
  * but can more than double the performance of that alternative - in many cases. ()
  * performance by turning many operations into a single one. 
+*/
+
+/* free set elems using the given function, e.g. free 
+ * does not destroy the set itself.
+ */
+void set_destroy_elems(set_t *set, void (*free_func)(void *));
+/* note:
+ * avoid breaking trees that don't allow freeing elems while iterating,
+ * and provide functionality for sets of structs, like sets of sets.
 */
 
 /*

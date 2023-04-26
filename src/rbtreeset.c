@@ -73,24 +73,29 @@ int set_size(set_t *set) {
     return set->size;
 }
 
-/* postorder recursive call stack to destroy the tree bottom-up */
-static void node_destroy(treenode_t *node, treenode_t *sentinel) {
-    if (node == sentinel) 
+static void node_destroy(treenode_t *node, treenode_t *NIL, void (*free_func)(void *)) {
+    if (node == NIL) 
         return;
 
-    node_destroy(node->left, sentinel);
-    node_destroy(node->right, sentinel);
+    node_destroy(node->left, NIL, free_func);
+    node_destroy(node->right, NIL, free_func);
+    if (free_func != NULL) {
+        free_func(node->elem);
+    }
     free(node);
 }
 
 void set_destroy(set_t *tree) {
-    // call the recursive part first
-    node_destroy(tree->root, tree->NIL);
-    // free sentinel (NIL-node), then tree itself
+    node_destroy(tree->root, tree->NIL, NULL);
     free(tree->NIL);
     free(tree);
 }
 
+void set_destroy_elems(set_t *tree, void (*free_func)(void *)) {
+    node_destroy(tree->root, tree->NIL, free_func);
+    tree->root = tree->NIL;
+    tree->size = 0;
+}
 
 /* ---------------Insertion, searching, rotation----------------- */
 

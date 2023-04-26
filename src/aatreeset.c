@@ -148,6 +148,22 @@ void set_destroy(set_t *set) {
     free(set);
 }
 
+void set_destroy_elems(set_t *set, void (*free_func)(void *)) {
+    treenode_t *n = set->first;
+
+    while (n != nullNode) {
+        treenode_t *tmp = n;
+        n = n->next;
+        if (free_func != NULL) {
+            free_func(tmp->elem);
+        }
+        free(tmp);
+    }
+    set->root = nullNode;
+    set->first = nullNode;
+    set->size = 0;
+}
+
 int set_size(set_t *set) {
     return set->size;
 }

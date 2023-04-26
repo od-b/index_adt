@@ -59,16 +59,6 @@ int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
     return (a->score - b->score);
 }
 
-/*
- * if a word is indexed, returns its related i_word_t. Otherwise, returns NULL. 
- */
-static i_word_t *index_search(index_t *index, char *word) {
-    index->search_word->word = word;
-    i_word_t *search_result = set_get(index->i_words, index->search_word);
-    index->search_word->word = NULL;
-    return search_result;
-}
-
 static void print_arr(int *arr, int n) {
     for (int i = 0; i < n; i++) {
         // printf("%d:  %d\n", i, arr[i]);
@@ -145,7 +135,11 @@ void index_destroy(index_t *index) {
 
     i_word_iter = set_createiter(index->i_words);
 
+    int num_i_words = set_size(index->i_words);
+    int freed_words = 0;
+
     while ((curr_i_word = set_next(i_word_iter)) != NULL) {
+        freed_words++;
         /* iterate over the indexed words set of paths */
         i_path_iter = set_createiter(curr_i_word->i_paths_with_word);
 
@@ -165,9 +159,13 @@ void index_destroy(index_t *index) {
     set_destroyiter(i_word_iter);
     set_destroy(index->i_words);
 
+    int num_i_paths = set_size(all_i_paths);
+    int freed_paths = 0;
+
     /* iterate over the set of all paths, freeing each paths' string and set */
     i_path_iter = set_createiter(all_i_paths);
     while ((curr_i_path = set_next(i_path_iter)) != NULL) {
+        freed_paths++;
         free(curr_i_path->path);
         set_destroy(curr_i_path->i_words_at_path);
         /* free the i_path struct */
@@ -187,7 +185,8 @@ void index_destroy(index_t *index) {
      */
     free(index->search_word);
     free(index);
-    DEBUG_PRINT("All memory allocated by the index is now freed\n");
+    DEBUG_PRINT("index_destroy: Freed %d/%d paths, %d/%d words\n",
+        num_i_paths, freed_paths, num_i_words, freed_words);
 }
 
 void index_addpath(index_t *index, char *path, list_t *words) {
@@ -278,29 +277,60 @@ const int WORD = 0;
 struct qnode;
 typedef struct qnode qnode_t;
 
+// struct term;
+// typedef struct term term_t;
+// struct term {
+//     int depth;
+//     int order;
+//     int type;
+// };
+
 struct qnode {
-    i_word_t *i_word;
-    char *token;
-    int depth;
-    int pos;
+    set_t *production;      // if <operator>
+    i_word_t *i_word;   // if <word>
+    int type;
     int id;
+    int depth;
     qnode_t *left;
     qnode_t *right;
 };
 
-static void print_query(qnode_t *leftmost) {
+static i_word_t *get_indexed_word(index_t *index, char *word) {
+    index->search_word->word = word;
+    i_word_t *indexed_word = set_get(index->i_words, index->search_word);
+    index->search_word->word = NULL;
+    return indexed_word;
+}
+
+static void print_query_nodes(qnode_t *leftmost) {
     qnode_t *n = leftmost;
-    printf("\n");
+    printf("\n%6s   %13s   %8s   %3s\n", "type", "token", "depth", "id");
     while (n != NULL) {
-        if (n->i_word != NULL) {
-            printf("%1s[ i ] %-13s: d=%d\n", "", n->i_word->word, n->depth);
-        } else {
-            if (n->id < 0) {
-                printf("[ %d ] %-13s: d=%d\n", n->id, n->token, n->depth);
-            } else {
-                printf("%1s[ %d ] %-13s: d=%d\n", "", n->id, n->token, n->depth);
-            }
+        char *msg;
+        switch (n->type) {
+            case WORD:
+                msg = (n->i_word == NULL) ? ("__WORD__") : (n->i_word->word);
+                break;
+            case OP_AND:
+                msg = "AND";
+                break;
+            case OP_ANDNOT:
+                msg = "ANDNOT";
+                break;
+            case OP_OR:
+                msg = "OR";
+                break;
+            case P_OPEN:
+                msg = "(";
+                break;
+            case P_CLOSE:
+                msg = ")";
+                break;
+            default:
+                ERROR_PRINT("unknown type %d\n", n->type);
+                break;
         }
+        printf("%6d   %13s   %8d   %3d\n", n->type, msg, n->depth, n->id);
         n = n->right;
     }
 }
@@ -311,125 +341,220 @@ static void destroy_qnodes(qnode_t *leftmost) {
     while (curr != NULL) {
         tmp = curr;
         curr = curr->right;
-        free(tmp->token);
+        if (tmp->production != NULL) {
+            set_destroy(tmp->production);
+        }
         free(tmp);
     }
 }
 
+// static void splice_query(qnode_t *start, qnode_t *stop) {
+//     if (start->left != NULL) {
+//         start->left->right = stop;
+//     }
+//     stop->left = start->left;
+// }
+
 /*
- * Purpose: Grammar control, paranthesis matching, token to node conversion
- * Todo: Grammar control
+ * Multi purpose processor: 
+ * Grammar control, paranthesis matching, detecting duplicate words, 
+ * converting tokens to nodes, assigning i_words to <word> terms,
+ * and the removal of meaningless parantheses if they exist.
+ * 
+ * General purposes: 
+ * Make parsing the tokens easier. Filter out common errors before attempting to terminate operators.
  */
-static qnode_t *process_query(index_t *index, list_t *query, char **errmsg) {
+static qnode_t *process_tokens(index_t *index, list_t *query, char **errmsg) {
     qnode_t *leftmost = NULL, *prev = NULL, *node = NULL;
     int depth = 0, par_set_id = -1;
 
-    nstack_t *par_stack = nstack_create();
-    if (par_stack == NULL) {
+    list_iter_t *q_iter = list_createiter(query);
+    nstack_t *paranthesis_stack = nstack_create();
+    map_t *searched_words = map_create((cmpfunc_t)strcmp, hash_string);
+    if (paranthesis_stack == NULL || searched_words == NULL || q_iter == NULL) {
         *errmsg = "out of memory";
         goto error;
     }
 
     char *token;
-    while ((token = list_popfirst(query)) != NULL) {
+    while ((token = list_next(q_iter)) != NULL) {
         node = malloc(sizeof(qnode_t));
         if (node == NULL) {
-            free(token);
             *errmsg = "out of memory";
             goto error;
         }
-
-        node->token = token;
+        node->id = 0;
         node->depth = depth;
-        node->i_word = NULL;
+        node->production = NULL;
+        node->right = NULL;
 
         if (token[0] == '(') {
-            node->id = P_OPEN;
-            nstack_push(par_stack, node);
+            node->type = P_OPEN;
+            nstack_push(paranthesis_stack, node);
             depth++;
         } else if (token[0] == ')') {
-            /* perform grammar control upon each closed pair of paranthesis */
-            node->id = P_CLOSE;
-            qnode_t *par_match = nstack_pop(par_stack);
+            node->type = P_CLOSE;
+            qnode_t *opening_par = nstack_pop(paranthesis_stack);
 
-            if (prev == NULL || par_match == NULL) {
+            /* perform general grammar control upon each closed pair of paranthesis */
+            if (prev == NULL || opening_par == NULL) {
                 *errmsg = "Unmatched closing paranthesis";
                 goto error;
             }
-            if (prev == par_match) {
+            if (prev == opening_par) {
                 *errmsg = "Parantheses without query";
                 goto error;
             }
-            if (prev->id != WORD) {
-                qnode_t *lterm = prev;
-                /* verify that first non-paranthesis on left is a not an operator */
-                while ((lterm->left != NULL) && (lterm->id <= 0)) {
-                    lterm = lterm->left;
+
+            /* verify that first non-paranthesis on left is a not an operator */
+            if (prev->type != WORD) {
+                qnode_t *tmp = prev;
+                /* move a pointer to the first non-paranthesis left of closing paranthesis */
+                while (tmp->id != WORD) {
+                    tmp = tmp->left;
+                    if (tmp == NULL) {
+                        *errmsg = "doubt this is even possible considering the following checks, but safe > sorry";
+                        goto error;
+                    }
                 }
-                if (lterm->id != WORD) {
+                if (tmp->type != WORD) {
+                    printf("tmp type: %d\n", tmp->type);
                     *errmsg = "Operators require adjacent terms";
                     goto error;
                 }
             }
 
-            /* paranthesis syntax should be valid. Assign an id to the matching parantheses */
-            par_match->id = node->id = par_set_id;
-            par_set_id--;
-            node->depth--;
-            depth--;
+            /* Passed syntax tests. However, if the parantheses only wrap a single <word>,
+             * pop them right away as they dont serve any logical purpose */
+            if (opening_par->right == prev) {
+                if (prev->left->type == WORD) {
+                    *errmsg = "consecutive words.";
+                    goto error;
+                }
+                if (opening_par == leftmost) {
+                    leftmost = prev;
+                } else {
+                    opening_par->left->right = prev;
+                }
+                prev->left = opening_par->left;
+                prev->depth -= 1;
+                free(node);
+                free(opening_par);
+                node = NULL;
+            } else {
+                /* Parantheses contains a non-<word> query. Assign an id to the matching parantheses */
+                opening_par->id = node->id = par_set_id;
+                par_set_id--;
+                node->depth--;
+                depth--;
+            }
         } else if (strcmp(token, "OR") == 0) {
-            node->id = OP_OR;
+            node->type = OP_OR;
         } else if (strcmp(token, "AND") == 0) {
-            node->id = OP_AND;
+            node->type = OP_AND;
         } else if (strcmp(token, "ANDNOT") == 0) {
-            node->id = OP_ANDNOT;
+            node->type = OP_ANDNOT;
         } else {
-            node->id = WORD;
-            node->i_word = index_search(index, token);
+            if (prev != NULL) {
+                /* check for any adjacent words, looking past parantheses */
+                qnode_t *tmp = prev;
+                while ((tmp != NULL) && (tmp->type < 0)) {
+                    /* while left is not NULL, a word, or an operator */
+                    tmp = tmp->left;
+                }
+                if ((tmp != NULL) && (tmp->type == WORD)) {
+                    *errmsg = "consecutive words.";
+                    goto error;
+                }
+            }
+            node->type = WORD;
+            /* If token from this query has already been searched for within the index,
+             * get the search result from map instead of searching the whole index again.
+             * Note: Map val be NULL if the word is not indexed. */
+            if (map_haskey(searched_words, token)) {
+                node->i_word = map_get(searched_words, token);
+            } else {
+                node->i_word = get_indexed_word(index, token);
+                map_put(searched_words, token, node->i_word);
+            }
         }
 
-        if ((prev != NULL) && ((prev->id > 0) && (node->id > 0))) {
-            *errmsg = "Adjacent operators";
-            goto error;
-        }
+        /* paranthesis node might have been popped. If so, go to next token */
+        if (node != NULL) {
+            /* some operator checks */
+            if (node->type > 0) {
+                if (prev == NULL) {
+                    *errmsg = "Operators require adjacent queries.";
+                    goto error;
+                } 
+                if (prev->type > 0) {
+                    *errmsg = "Adjacent operators.";
+                    goto error;
+                }
+                if (prev->type == P_OPEN) {
+                    *errmsg = "Operators may not occur directly after an opening paranthesis.";
+                    goto error;
+                }
+            }
 
-        node->right = NULL;
-
-        if (leftmost == NULL) {
-            leftmost = node;
-            node->left = NULL;
-        } else {
-            prev->right = node;
-            node->left = prev;
+            /* all syntax tests seem okay. link to chain of query nodes. and continue with next token. */
+            if (leftmost == NULL) {
+                leftmost = node;
+                node->left = NULL;
+            } else {
+                prev->right = node;
+                node->left = prev;
+            }
+            prev = node;
         }
-        prev = node;
     }
+    list_destroyiter(q_iter);
 
-    if (nstack_height(par_stack) != 0) {
+    if (nstack_height(paranthesis_stack) != 0) {
         *errmsg = "unmatched opening paranthesis";
         goto error;
     }
 
-    nstack_destroy(par_stack);
+    /* pop all parantheses pairs expanding the entire width of the query */
+    while ((node->type == P_CLOSE) && (leftmost->id == node->id)) {
+        qnode_t *tmp = leftmost;
+        leftmost = leftmost->right;
+        leftmost->left = NULL;
+        free(tmp);
+        tmp = node->left;
+        node->left->right = NULL;
+        free(node);
+        node = tmp;
+    }
+
+    if ((leftmost->type > 0) || (node->type > 0)) {
+        *errmsg = "Query may not begin or end with an operator.";
+        goto error;
+    }
+
+    /* destroy map, not tokens && i_words */
+    map_destroy(searched_words, NULL, NULL);
+    nstack_destroy(paranthesis_stack);
     return leftmost;
 
 error:
-    if (par_stack != NULL) {
-        nstack_destroy(par_stack);
-    }
-    if (leftmost != NULL) {
+    if (q_iter != NULL)
+        list_destroyiter(q_iter);
+    if (leftmost != NULL)
+        print_query_nodes(leftmost);
+    if (paranthesis_stack != NULL)
+        nstack_destroy(paranthesis_stack);
+    if (searched_words != NULL)
+        map_destroy(searched_words, NULL, NULL);
+    if (leftmost != NULL)
         destroy_qnodes(leftmost);
-    }
-    if (node != NULL) {
-        /* may not have been linked to the chain yet. */
-        free(node);
-    }
     return NULL;
 }
 
 /* for each path @ to the given indexed word, create and add query_result(s) to results */
-static void add_result(list_t *results, i_word_t *i_word) {
-    set_iter_t *path_iter = set_createiter(i_word->i_paths_with_word);
+static void add_result(list_t *results, set_t *i_paths) {
+    set_iter_t *path_iter = set_createiter(i_paths);
+
     double score = 0.0;
     i_path_t *i_path;
     if (path_iter == NULL) {
@@ -449,38 +574,63 @@ static void add_result(list_t *results, i_word_t *i_word) {
     set_destroyiter(path_iter);
 }
 
-// static set_t *eval_or(qnode_t *op_node);
-// static set_t *eval_and(qnode_t *op_node);
-// static set_t *eval_andnot(qnode_t *op_node);
+// <query>   ::=  <andterm> | <andterm> "ANDNOT" <query>
+// <andterm> ::=  <orterm> | <orterm> "AND" <andterm>
+// <orterm>  ::=  <term> | <term> "OR" <orterm>
+// <term>    ::=  "(" <query> ")" | <word>
 
-static void parse_query(index_t *index, list_t *results, qnode_t *leftmost) {
-    print_query(leftmost);
+// "ANDNOT" : difference   => <term> \ <term>
+// "OR"     : union        => <term> ∪ <term>
+// "AND"    : intersection => <term> ∩ <term>
 
+
+static qnode_t *parse_andterm(qnode_t *left) {
+    return NULL;
+    UNUSED(left);
+}
+
+static qnode_t *parse_orterm(qnode_t *left) {
+    return NULL;
+    UNUSED(left);
+}
+
+static qnode_t *parse_query(index_t *index, list_t *results, qnode_t *node) {
+    UNUSED(parse_andterm);
+    UNUSED(parse_orterm);
+    // switch (node->id) {
+    //     case OP_ANDNOT:
+    //     case OP_AND:
+    //     case OP_OR:
+    //     case WORD:
+    //         return node;
+    // }
     UNUSED(index);
     UNUSED(results);
-    UNUSED(results);
+    UNUSED(node);
+    return NULL;
 }
 
 list_t *index_query(index_t *index, list_t *query, char **errmsg) {
-    qnode_t *leftmost = process_query(index, query, errmsg);
+    /* step 1: syntax control and formatting */
+    qnode_t *leftmost = process_tokens(index, query, errmsg);
     if (leftmost == NULL) {
-        /* errmsg will have been set by process query. */
+        DEBUG_PRINT("leftmost == NULL\n");
         return NULL;
     }
 
-    list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
+    // print_query_nodes(leftmost);
 
+    list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
     if (leftmost->right == NULL) {
-        i_word_t *search_res = leftmost->i_word;
-        if (search_res != NULL) {
-            add_result(results, search_res);
-        }
+        add_result(results, leftmost->i_word->i_paths_with_word);
         free(leftmost);
     } else {
         parse_query(index, results, leftmost);
     }
-
     return results;
+
+    // *errmsg = "_END_";
+    // return NULL;
 }
 
 

@@ -24,7 +24,6 @@ map_t *map_create(cmpfunc_t cmpfunc, hashfunc_t hashfunc);
  * in the map will be destroyed using that function, and similarly, the
  * values will be destroyed using 'destroy_val' if it is not NULL. 
  */
-
 void map_destroy(map_t *map, void (*destroy_key)(void *), void (*destroy_val)(void *));
 
 /*

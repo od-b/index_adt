@@ -133,3 +133,5 @@ parse_expression_1(lhs, min_precedence)
     return lhs
 
 
+
+(a AND b ANDNOT ((c) AND d ANDNOT e) OR f AND g AND h ANDNOT (i) AND j) AND (k AND (l) OR m AND n ANDNOT (o) ANDNOT p) OR q AND ((r) AND s) OR (t) OR u AND (v) AND w ANDNOT ((x ANDNOT y) ANDNOT (z)) ANDNOT (aa AND bb) OR (cc) OR dd

@@ -6,8 +6,8 @@
 # You can change these values to test with different implementations (for example chained hashmap vs open addressing) 
 LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
-SET_SRC=rbtreeset.c
-# SET_SRC=aatreeset.c
+# SET_SRC=rbtreeset.c
+SET_SRC=aatreeset.c
 INDEX_SRC=index_tree.c nstack.c
 
 # Directories

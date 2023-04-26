@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <ctype.h>
-#include <unistd.h>
 
 
 #define PORT_NUM 8080
@@ -209,8 +208,6 @@ static void send_results(FILE *f, char *query, list_t *results) {
         /* Free memory */
         free(tmp);
         free(res);
-
-        /* note: doesn't free path memory, so should pass original path as pointer */
     }
     list_destroyiter(it);
 
@@ -499,7 +496,7 @@ int main(int argc, char **argv) {
     list_destroyiter(iter);
     list_destroy(files);
 
-    DEBUG_PRINT("Indexer (%u): Serving queries on port %s:%d\n", (unsigned int)getpid(), "127.0.0.1", (int)PORT_NUM);
+    DEBUG_PRINT("Indexer: Serving queries on port %s:%d\n", "127.0.0.1", (int)PORT_NUM);
 
     status = http_server((int)PORT_NUM, http_handler);
     index_destroy(idx);

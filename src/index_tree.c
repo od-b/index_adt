@@ -253,10 +253,7 @@ const int TERM = 0;
 struct qnode;
 typedef struct qnode qnode_t;
 
-struct query;
-typedef struct query query_t;
-
-static query_t *test_preprocessor_time(index_t *index, list_t *query, char **errmsg);
+static qnode_t *test_preprocessor_time(index_t *index, list_t *query, char **errmsg);
 static void query_printnodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int FORMATTED, int DETAILS);
 
 struct qnode {
@@ -265,13 +262,6 @@ struct qnode {
     int id;
     qnode_t *left;
     qnode_t *right;
-};
-
-struct query {
-    char **errmsg;
-    int error;
-    qnode_t *leftmost;
-    qnode_t *rightmost;
 };
 
 
@@ -294,22 +284,18 @@ static void destroy_query_nodes(qnode_t *leftmost) {
  * General purposes: 
  * Make parsing the tokens easier. Filter out common errors before attempting to terminate operators.
  */
-static query_t *verify_tokens(index_t *index, list_t *tokens, char ***errmsg) {
+static qnode_t *verify_tokens(index_t *index, list_t *tokens, char **errmsg) {
     list_iter_t *tok_iter = list_createiter(tokens);
     nstack_t *paranthesis_stack = nstack_create();
     map_t *searched_words = map_create((cmpfunc_t)strcmp, hash_string);
-    query_t *query = malloc(sizeof(query_t));
 
-    if (paranthesis_stack == NULL || searched_words == NULL || tok_iter == NULL || query == NULL) {
+    if (paranthesis_stack == NULL || searched_words == NULL || tok_iter == NULL) {
         return NULL;
     }
 
     qnode_t *prev = NULL, *node = NULL;
     int par_set_id = -1;
-    query->leftmost = NULL;
-    query->rightmost = NULL;
-    query->error = 0;
-    query->errmsg = *errmsg;
+    qnode_t *leftmost = NULL;
 
     char *token;
     while ((token = list_next(tok_iter)) != NULL) {
@@ -330,11 +316,11 @@ static query_t *verify_tokens(index_t *index, list_t *tokens, char ***errmsg) {
 
             /* perform general grammar control upon each closed pair of paranthesis */
             if (prev == NULL || opening_par == NULL) {
-                *query->errmsg = "[1] Unmatched closing paranthesis";
+                *errmsg = "[1] Unmatched closing paranthesis";
                 goto error;
             }
             if (prev == opening_par) {
-                *query->errmsg = "[2] Parantheses without query";
+                *errmsg = "[2] Parantheses without query";
                 goto error;
             }
 
@@ -345,12 +331,12 @@ static query_t *verify_tokens(index_t *index, list_t *tokens, char ***errmsg) {
                 while (tmp->id != TERM) {
                     tmp = tmp->left;
                     if (tmp == NULL) {
-                        *query->errmsg = "[-1] THIS ERROR CANNOT BE TRIGGERED?";
+                        *errmsg = "[-1] THIS ERROR CANNOT BE TRIGGERED?";
                         goto error;
                     }
                 }
                 if (tmp->type != TERM) {
-                    *query->errmsg = "[3] Operators require adjacent terms";
+                    *errmsg = "[3] Operators require adjacent terms";
                     goto error;
                 }
             }
@@ -360,11 +346,11 @@ static query_t *verify_tokens(index_t *index, list_t *tokens, char ***errmsg) {
             if (opening_par->right == prev) {
                 if (prev->left->type == TERM) {
                     // for cases like `a AND b (c) OR d`
-                    *query->errmsg = "[4] Consecutive words.";
+                    *errmsg = "[4] Consecutive words.";
                     goto error;
                 }
-                if (opening_par == query->leftmost) {
-                    query->leftmost = prev;
+                if (opening_par == leftmost) {
+                    leftmost = prev;
                 } else {
                     opening_par->left->right = prev;
                 }
@@ -394,7 +380,7 @@ static query_t *verify_tokens(index_t *index, list_t *tokens, char ***errmsg) {
                     tmp = tmp->left;
                 }
                 if ((tmp != NULL) && (tmp->type == TERM)) {
-                    *query->errmsg = "[5] consecutive words.";
+                    *errmsg = "[5] consecutive words.";
                     goto error;
                 }
             }
@@ -414,22 +400,22 @@ static query_t *verify_tokens(index_t *index, list_t *tokens, char ***errmsg) {
             /* some operator checks */
             if (node->type > 0) {
                 if (prev == NULL) {
-                    *query->errmsg = "[6] Operators require adjacent queries.";
+                    *errmsg = "[6] Operators require adjacent queries.";
                     goto error;
                 }
                 if (prev->type > 0) {
-                    *query->errmsg = "[7] Adjacent operators.";
+                    *errmsg = "[7] Adjacent operators.";
                     goto error;
                 }
                 if (prev->type == L_PAREN) {
-                    *query->errmsg = "[8] Operators may not occur directly after an opening paranthesis.";
+                    *errmsg = "[8] Operators may not occur directly after an opening paranthesis.";
                     goto error;
                 }
             }
 
             /* all syntax tests seem okay. link to chain of query nodes. and continue with next token. */
-            if (query->leftmost == NULL) {
-                query->leftmost = node;
+            if (leftmost == NULL) {
+                leftmost = node;
                 node->left = NULL;
             } else {
                 prev->right = node;
@@ -440,15 +426,15 @@ static query_t *verify_tokens(index_t *index, list_t *tokens, char ***errmsg) {
     }
 
     if (nstack_height(paranthesis_stack) != 0) {
-        *query->errmsg = "[9] Unmatched opening paranthesis";
+        *errmsg = "[9] Unmatched opening paranthesis";
         goto error;
     }
 
     /* pop all parantheses pairs expanding the entire width of the query */
-    while ((node->type == R_PAREN) && (query->leftmost->id == node->id)) {
-        qnode_t *tmp = query->leftmost;
-        query->leftmost = query->leftmost->right;
-        query->leftmost->left = NULL;
+    while ((node->type == R_PAREN) && (leftmost->id == node->id)) {
+        qnode_t *tmp = leftmost;
+        leftmost = leftmost->right;
+        leftmost->left = NULL;
         free(tmp);
         tmp = node->left;
         node->left->right = NULL;
@@ -456,8 +442,8 @@ static query_t *verify_tokens(index_t *index, list_t *tokens, char ***errmsg) {
         node = tmp;
     }
 
-    if ((query->leftmost->type > 0) || (node->type > 0)) {
-        *query->errmsg = "[10] Query may not begin or end with an operator.";
+    if ((leftmost->type > 0) || (node->type > 0)) {
+        *errmsg = "[10] Query may not begin or end with an operator.";
         goto error;
     }
 
@@ -465,36 +451,34 @@ static query_t *verify_tokens(index_t *index, list_t *tokens, char ***errmsg) {
     nstack_destroy(paranthesis_stack);
     list_destroyiter(tok_iter);
 
-    query->rightmost = node;
-    return query;
+    return leftmost;
 
 error:
-    if (query->leftmost != NULL)
-        query_printnodes(NULL, query->leftmost, 1, 1, 1);
-        destroy_query_nodes(query->leftmost);
+    if (leftmost != NULL)
+        query_printnodes(NULL, leftmost, 1, 1, 1);
+        destroy_query_nodes(leftmost);
     if (tok_iter != NULL)
         list_destroyiter(tok_iter);
     if (paranthesis_stack != NULL)
         nstack_destroy(paranthesis_stack);
     if (searched_words != NULL)
         map_destroy(searched_words, NULL, NULL);
-    query->error = 1;
-    return query;
+    return NULL;
 }
 
-static list_t *get_query_results(query_t *query) {
+static list_t *get_query_results(qnode_t *node) {
     list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
     if (results == NULL) {
         return NULL;
     }
 
-    if (query == NULL) {
+    if (node == NULL) {
         DEBUG_PRINT("query == NULL, avoided segfault\n");
         return results;
     }
 
-    if (query->leftmost->product != NULL) {
-        set_iter_t *path_iter = set_createiter(query->leftmost->product);
+    if (node->product != NULL) {
+        set_iter_t *path_iter = set_createiter(node->product);
         if (path_iter == NULL) {
             return NULL;
         }
@@ -528,66 +512,117 @@ static list_t *get_query_results(query_t *query) {
 // "OR"     : union        => <term> ∪ <term>
 // "AND"    : intersection => <term> ∩ <term>
 
+static qnode_t *term_andnot(qnode_t *andterm, qnode_t *query);
+static qnode_t *term_and(qnode_t *orterm, qnode_t *andterm);
+static qnode_t *term_or(qnode_t *term, qnode_t *orterm);
+static qnode_t *parse_query(qnode_t *leftmost);
 
-static qnode_t *term_andnot(qnode_t *andterm, qnode_t *query, char **errmsg) {
-    return NULL;
-}
 
-static qnode_t *term_and(qnode_t *orterm, qnode_t *andterm, char **errmsg) {
-    return NULL;
-}
+static void consume_terms(qnode_t *oper) {
+    oper->type = TERM;
+    qnode_t *l_term = oper->left;
+    qnode_t *r_term = oper->right;
 
-static qnode_t *term_or(qnode_t *term, qnode_t *orterm, char **errmsg) {
-    return NULL;
-}
-
-static query_t *parse_query(query_t *query) {
-
-    if (query->leftmost == query->rightmost) {
-        return query;
+    oper->left = l_term->left;
+    if (l_term->left != NULL) {
+        l_term->left->right = oper;
     }
 
-    // switch (next->id) {
-    //     case TERM:
-    //         return leftmost;
-    //     case OP_OR:
-    //         break;
-    //     case OP_AND:
-    //         break;
-    //     case OP_ANDNOT:
-    //         break;
-    //     default:
-    //         break;
-    // }
-
-    query->error = 1;
-    *query->errmsg = "parsing failed";
-    return query;
+    oper->right = r_term->right;
+    if (r_term->right != NULL) {
+        r_term->right->left = oper;
+    }
+    free(l_term);
+    free(r_term);
 }
 
+static void pop_parens(qnode_t *l_paren, qnode_t *r_paren) {
+    l_paren->right->left = l_paren->left;
+    if (l_paren->left != NULL) {
+        l_paren->left->right = l_paren->right;
+    }
+    r_paren->left->right = r_paren->right;
+    if (r_paren->right != NULL) {
+        r_paren->right->left = r_paren->left;
+    }
+    free(l_paren);
+    free(r_paren);
+}
+
+static qnode_t *term_andnot(qnode_t *andterm, qnode_t *query) {
+    return NULL;
+}
+
+static qnode_t *term_and(qnode_t *orterm, qnode_t *andterm) {
+    return NULL;
+}
+
+static qnode_t *term_or(qnode_t *term, qnode_t *orterm) {
+    qnode_t *self = term->right;
+
+    if (orterm->type == TERM) {
+        if ((term->product != NULL) && (orterm->product != NULL)) {
+            self->product = set_union(term->product, orterm->product);
+        } 
+        else if (term->product != NULL) {
+            self->product = term->product;
+        } 
+        else if (orterm->product != NULL) {
+            self->product = orterm->product;
+        } 
+        else {
+            self->product = NULL;
+        }
+
+        consume_terms(self);
+        return self;
+    } else if (orterm->type == L_PAREN) {
+        return term_or(term, parse_query(orterm));
+    }
+}
+
+static qnode_t *parse_query(qnode_t *leftmost) {
+    /* base case: nothing more to parse */
+    if ((leftmost->left == NULL) && (leftmost->right == NULL)) {
+        return leftmost;
+    }
+
+    qnode_t *L = leftmost;
+    qnode_t *R = L->right;
+
+    if (L->type == L_PAREN) {
+        qnode_t *R_PAR = R;
+        while (L->id != R_PAR->id) {
+            R_PAR = R_PAR->right;
+        }
+        pop_parens(L, R_PAR);
+        return parse_query(R);
+    }
+
+    switch (R->type) {
+        case OP_OR:
+            return term_or(L, R);
+        case OP_AND:
+            return term_and(L, R);
+        case OP_ANDNOT:
+            return term_andnot(L, R);
+        default:
+            return parse_query(L);
+    }
+}
+
+/* ((a OR b) OR (c OR d OR e)) OR (f OR g OR h) */
+/* ((a AND b) OR (c OR d OR e)) ANDNOT (f OR g AND h) */
 
 list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
-    query_t *query = verify_tokens(index, tokens, &errmsg);
-    if (query == NULL) {
-        ERROR_PRINT("out of memory\n");
-        return NULL;
-    }
-    if (query->error) {
-        free(query);
+    qnode_t *leftmost = verify_tokens(index, tokens, errmsg);
+    if (leftmost == NULL) {
         return NULL;
     }
 
-    query_t *parsed_query = parse_query(query);
-    if (parsed_query->error) {
-        if (parsed_query != query) {
-            free(parsed_query);
-        }
-        free(query);
-        return NULL;
-    }
-
+    qnode_t *parsed_query = parse_query(leftmost);
     list_t *query_results = get_query_results(parsed_query);
-    destroy_query_nodes(query->leftmost);
+    destroy_query_nodes(leftmost);
     free(parsed_query);
 
     return query_results;
@@ -690,17 +725,17 @@ static void query_printnodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int
     }
 }
 
-static query_t *test_preprocessor_time(index_t *index, list_t *tokens, char **errmsg) {
+static qnode_t *test_preprocessor_time(index_t *index, list_t *tokens, char **errmsg) {
     const unsigned long long t_start = gettime();
-    query_t *query = verify_tokens(index, tokens, &errmsg);
+    qnode_t *leftmost = verify_tokens(index, tokens, errmsg);
     const unsigned long long t_end = (gettime() - t_start);
-    if (query->error) {
+    if (leftmost == NULL) {
         return NULL;
     }
 
     if (list_size(tokens) != index->print_once) {
         printf("Taking Times for Query:\n");
-        query_printnodes(tokens, query->leftmost, 1, 1, 0);
+        query_printnodes(tokens, leftmost, 1, 1, 0);
         printf("     ________Times________\n");
         printf(" %11s %14s \n", "Run No.", "Time (μs)");
         index->print_once = list_size(tokens);
@@ -708,5 +743,5 @@ static query_t *test_preprocessor_time(index_t *index, list_t *tokens, char **er
     }
     index->run_number++;
     printf("%11d %14llu\n", index->run_number, t_end);
-    return query;
+    return leftmost;
 }

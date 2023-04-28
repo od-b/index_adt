@@ -35,15 +35,14 @@ FLAGS = -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
 
 .PHONY=all
 
-# all: indexer
-all: indexer assert_index
+all: $(INDEXER)
 
-indexer: $(INDEXER_SRC) $(HEADERS) Makefile
+$(INDEXER): $(INDEXER_SRC) $(HEADERS) Makefile
 	gcc -Wall -o $@ -D_GNU_SOURCE -D_REENTRANT $(INDEXER_SRC) -I$(INCLUDE_DIR) -lm -lpthread $(FLAGS)
 
-assert_index: $(ASSERT_SRC) $(HEADERS) Makefile
+$(ASSERT_INDEX): $(ASSERT_SRC) $(HEADERS) Makefile
 	gcc -o $@ $(ASSERT_SRC) -I$(INCLUDE_DIR) -lm $(FLAGS)
 
 clean:
-	rm -f *~ *.o *.exe *.out *.prof *.stackdump indexer assert_index
+	rm -f *~ *.o *.exe *.out *.prof *.stackdump $(INDEXER) $(ASSERT_INDEX)
 	rm -rf *.dSYM

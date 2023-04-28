@@ -1,38 +1,75 @@
 /*
- * Index ADT implementation done almost solely through the use of tree-based sets 
- * TODO: [README LINK]
+ * Index ADT implementation relying mainly on the use of tree-based set(s)
 */
+
 
 #include "index.h"
 #include "common.h"
 #include "printing.h"
-#include "set.h"
-#include "pile.h"
 #include "map.h"
+#include "set.h"    // aatreeset || rbtreeset
+#include "pile.h"   // simple stack
 
 #include <ctype.h>
 #include <string.h>
 
 
-/*
- *  -------- Section 1: Index Creation, Destruction and Building --------
-*/
+#define ERRMSG_MAXLEN  254 
+#define L_PAREN   -2
+#define R_PAREN   -1
+#define OP_OR      1
+#define OP_AND     2
+#define OP_ANDNOT  3
+#define TERM       0
 
-static const size_t ERRMSG_MAXLEN = 254;
+
+struct qnode;
+typedef struct qnode qnode_t;
+
 
 /* type of indexed word */
 typedef struct i_word {
-    char     *word;
-    set_t    *paths;  /* paths that contain i_word->word */
+    char      *word;
+    set_t     *paths;          /* set of paths where this word can be found */
 } i_word_t;
 
+/* type of index */
 typedef struct index {
-    set_t    *i_words;        /* set containing all i_word_t within the index */
-    i_word_t *word_buf;    /* variable i_word_t for internal searching purposes */
-    int print_once;
-    int run_number;
-    char *errmsg_buf;
+    set_t     *i_words;        /* set of all indexed words */
+    i_word_t  *word_buf;       /* i_word for searching / appending purposes */
+    char      *errmsg_buf;     /* buffer to ease customization of error messages */
+    int        print_once;
+    int        run_number;
 } index_t;
+
+/* type of query node */
+struct qnode {
+    int        type;
+    set_t     *product;        /* result of a completed term. will be a set or NULL. */
+    int        free_product;   /* track if the product points to an indexed set or a gen2 set, e.g. union. */
+    qnode_t   *r_paren;        /* L_PAREN only. Holds a pointer to the respective right parenthesis */
+    qnode_t   *left;
+    qnode_t   *right;
+};
+
+
+/* 
+ * functions that require preempty declaration will be listed here
+*/
+
+static void query_printnodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int FORMATTED, int DETAILS);
+static list_t *get_query_results(qnode_t *node);
+static qnode_t *term_andnot(qnode_t *oper);
+static qnode_t *term_and(qnode_t *oper);
+static qnode_t *term_or(qnode_t *oper);
+static qnode_t *parse_query(qnode_t *node);
+static qnode_t *splice_nodes(qnode_t *l, qnode_t *r);
+static void destroy_product(qnode_t *term);
+
+
+/*
+ *  -------- Section 1: Index Creation, Destruction and Building --------
+*/
 
 
 /* compares two i_word_t objects by their ->word */
@@ -50,7 +87,6 @@ int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
 }
 
 
-
 // static void print_arr(int *arr, int n) {
 //     for (int i = 0; i < n; i++) {
 //         // printf("%d:  %d\n", i, arr[i]);
@@ -64,28 +100,30 @@ int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
 // }
 
 index_t *index_create() {
-    index_t *new_index = malloc(sizeof(index_t));
-    if (new_index == NULL) {
+    index_t *ind = malloc(sizeof(index_t));
+    if (!ind) {
         ERROR_PRINT("out of memory");
         return NULL;
     }
 
     /* create the index set with a specialized compare func for the words */
-    new_index->i_words = set_create((cmpfunc_t)compare_i_words_by_string);
-    new_index->word_buf = malloc(sizeof(i_word_t));
-    new_index->errmsg_buf = calloc((ERRMSG_MAXLEN + 1), sizeof(char));
-    if (new_index->i_words == NULL || new_index->word_buf == NULL || new_index->errmsg_buf == NULL) {
+    ind->i_words = set_create((cmpfunc_t)compare_i_words_by_string);
+    ind->word_buf = malloc(sizeof(i_word_t));
+    ind->errmsg_buf = calloc((ERRMSG_MAXLEN + 1), sizeof(char));
+
+    if (!ind->i_words || !ind->word_buf || !ind->errmsg_buf) {
         ERROR_PRINT("out of memory");
         return NULL;
     }
-    new_index->word_buf->word = NULL;
-    new_index->word_buf->paths = NULL;
+
+    ind->word_buf->word = NULL;
+    ind->word_buf->paths = NULL;
 
     /* for tests etc */
-    new_index->print_once = 0;
-    new_index->run_number = 0;
+    ind->print_once = 0;
+    ind->run_number = 0;
 
-    return new_index;
+    return ind;
 }
 
 void index_destroy(index_t *index) {
@@ -198,134 +236,103 @@ void index_addpath(index_t *index, char *path, list_t *words) {
 
 
 /*
- *  -------- Section 2: Parser & Query --------
+ *  -------- Section 2: Query Parsing & Response --------
 */
 
-struct qnode;
-typedef struct qnode qnode_t;
-
-struct qnode {
-    int type;
-    set_t *product;         /* if node with type == TERM: set product of term | NULL if empty result */
-    int destroy_product;    /* essentially whether the product set is 'borrowed' from the index, or created. */
-    qnode_t *r_paren;       /* if node->type == L_PAREN: holds a pointer to the respective right parenthesis */
-    qnode_t *left;
-    qnode_t *right;
-};
-
-/* parser & query declarations to allow organizing function order */
-
-// static qnode_t *test_preprocessor_time(index_t *index, list_t *query, char **errmsg);
-static void query_printnodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int FORMATTED, int DETAILS);
-static list_t *get_query_results(qnode_t *node);
-static qnode_t *term_andnot(qnode_t *oper);
-static qnode_t *term_and(qnode_t *oper);
-static qnode_t *term_or(qnode_t *oper);
-static qnode_t *parse_query(qnode_t *node);
-static qnode_t *splice_nodes(qnode_t *l, qnode_t *r);
-static void destroy_product(qnode_t *term);
-
-
-/* 
- * Defined types of query nodes, to improve readability. Not certain if there's any side effects, 
- * but classified as static consts instead of defines to avoid any potential namespace issues
-*/
-
-static const int L_PAREN    = -2;
-static const int R_PAREN    = -1;
-static const int OP_OR      =  1;
-static const int OP_AND     =  2;
-static const int OP_ANDNOT  =  3;
-static const int TERM       =  0;
-
-
-/* whether a given node is an operator. Checks for node == NULL. */
+/* return 0 on NULL or non-operator, otherwise returns operator type */
 static int is_operator(qnode_t *node) {
-    return (node == NULL) ? (0) : ((node->type > 0) ? (1) : (0));
+    if (node && (node->type > 0))
+        return node->type;
+    return 0;
 }
 
-/* destroys the product set of a node, unless that set belongs to the index. */
+// /* return 0 on NULL or nonpar, otherwise returns paranthesis type */
+// static int is_parenthesis(qnode_t *node) {
+//     if (node && (node->type < 0))
+//         return node->type;
+//     return 0;
+// }
+
+/* destroys the product set of a node, unless the set is from a word. Does not destroy the term. */
 static void destroy_product(qnode_t *term) {
-    if ((term->product != NULL) && (term->destroy_product)) {
+    if (term && (term->product && term->free_product)) {
         set_destroy(term->product);
+        term->product = NULL;
     }
 }
 
 /*
- * Verifies the query syntax.
+ * * Identifies a majority of typical issues regarding query syntax.
  * Converts the tokens to query nodes. <word> tokens are terminated at this stage,
- * and will be assigned a pointer to a set of paths if the word is contained within
- * the index. The product will otherwise be a null-pointer.
- * Removes some meaningless parantheses, e.g. '(' <word> ')'
+ * and will be assigned a pointer to a set of paths, given that the word is contained within
+ * the index. The product of <word> will otherwise be a null-pointer.
  */
-static qnode_t *verify_tokens(index_t *index, list_t *tokens) {
+static qnode_t *format_tokens(index_t *index, list_t *tokens) {
     list_iter_t *tok_iter = list_createiter(tokens);
     pile_t *paranthesis_pile = pile_create();
     map_t *searched_words = map_create((cmpfunc_t)strcmp, hash_string);
 
-    if (paranthesis_pile == NULL || searched_words == NULL || tok_iter == NULL) {
+    if (!paranthesis_pile || !searched_words || !tok_iter) {
         return NULL;
     }
 
-    qnode_t *prev = NULL, *node = NULL;
-    qnode_t *leftmost = NULL;
-    int token_n = 0;
-    char *msg = NULL, *token = NULL;
+    qnode_t *leftmost, *prev, *prev_nonpar, *node, *l_paren;
+    char *errmsg, *token;
+    i_word_t *i_word;
+    int i; // iteration count, to improve msg on error.
 
-    while (list_hasnext(tok_iter)) {
-        token_n++;
+    /* initialize all declared pointers to NULL */
+    leftmost = prev = prev_nonpar = node = l_paren = NULL;
+    errmsg = token = NULL;
+    i_word = NULL;
+
+    for (i = 1; (!errmsg && list_hasnext(tok_iter)); i++) {
         token = list_next(tok_iter);
         node = malloc(sizeof(qnode_t));
-        if (node == NULL) {
+        if (!node) {
             return NULL;
         }
-        node->destroy_product = 1;
+
+        node->free_product = 1;
         node->product = NULL;
         node->right = NULL;
         node->r_paren = NULL;
+
+        /* perform checks and assign node members depending on the token. */
 
         if (token[0] == '(') {
             node->type = L_PAREN;
             pile_push(paranthesis_pile, node);
         } else if (token[0] == ')') {
             node->type = R_PAREN;
-            qnode_t *l_paren = pile_pop(paranthesis_pile);
+            l_paren = pile_pop(paranthesis_pile);
 
-            if (prev == NULL || l_paren == NULL) {
-                msg = "Unmatched closing paranthesis";
-                goto error;
-            }
-            if (prev == l_paren) {
-                msg = "Parantheses must contain a query";
-                goto error;
-            }
-            /* If the parantheses only wrap a single <word>,
-             * pop them right away as they dont serve any logical purpose */
-            if (l_paren->right == prev) {
+            if (!prev || !l_paren) {
+                errmsg = "Unmatched closing paranthesis";
+            } else if (prev == l_paren) {
+                errmsg = "Parantheses must contain a query";
+            } else if (l_paren->right == prev) {
                 if (prev->left->type == TERM) {
                     // for cases like `a AND b (c) OR d`
-                    msg = "Adjacent words.";
-                    goto error;
-                }
-                if (l_paren == leftmost) {
-                    leftmost = prev;
+                    errmsg = "Adjacent words";
                 } else {
-                    l_paren->left->right = prev;
-                }
-                prev->left = l_paren->left;
-                free(node);
-                free(l_paren);
-                if (list_hasnext(tok_iter)) {
-                    continue;
-                } else {
-                    break;
+                    /* the parantheses only wrap a single <word>. remove them. */
+                    if (l_paren == leftmost) {
+                        // in case left paranthesis is 'root'
+                        leftmost = prev;
+                    } else {
+                        l_paren->left->right = prev;
+                    }
+                    prev->left = l_paren->left;
+                    free(node);
+                    free(l_paren);
                 }
             } else {
                 /* link the left paranthesis to its right counterpart */
                 l_paren->r_paren = node;
             }
         } else if (isupper(token[0])) {
-            /* token is an operator */
+            /* find type of operator */
             if (strcmp(token, "OR") == 0)
                 node->type = OP_OR;
             else if (strcmp(token, "AND") == 0)
@@ -333,127 +340,95 @@ static qnode_t *verify_tokens(index_t *index, list_t *tokens) {
             else if (strcmp(token, "ANDNOT") == 0)
                 node->type = OP_ANDNOT;
             else {
-                msg = "oops. verify_tokens expected an operator.";
-                goto error;
-                // add the default just in case, so doesn't turn into a bug.
+                /* default case to control that all given uppercase tokens are operators */
+                errmsg = "indexer error. Index expexted all uppercase tokens to be OR | AND | ANDNOT";
+                break;
             }
-            /* check first non-paranthesis token on left */
-            qnode_t *tmp = prev;
-            while ((tmp != NULL) && (tmp->type == L_PAREN || tmp->type == R_PAREN)) {
-                tmp = tmp->left;
+
+            if (!prev || !prev_nonpar) {
+                errmsg = "Operators require adjacent terms";
+            } else if (prev_nonpar->type != TERM) {
+                errmsg = "Adjacent operators.";
+            } else if (prev->type == L_PAREN) {
+                errmsg = "Operators may not occur directly after an opening paranthesis";
             }
-            if ((tmp != NULL) && (is_operator(tmp))) {
-                msg = "Adjacent operators.";
-                goto error;
-            }
+            prev_nonpar = node;
         } else {
-            node->type = TERM;
-
-            /* check first non-paranthesis token on left */
-            qnode_t *tmp = prev;
-            while ((tmp != NULL) && (tmp->type == L_PAREN || tmp->type == R_PAREN)) {
-                tmp = tmp->left;
-            }
-            if ((tmp != NULL) && (tmp->type == TERM)) {
-                msg = "Adjacent words.";
-                goto error;
-            }
-            /* If token from this query has already been searched for within the index,
-             * get the search result from map instead of searching the whole index again. */
-            if (map_haskey(searched_words, token)) {
-                node->product = map_get(searched_words, token);
+            /* token is a <word> */
+            if (prev_nonpar && (prev_nonpar->type == TERM)) {
+                errmsg = "Adjacent words";
             } else {
-                index->word_buf->word = token;
-                i_word_t *indexed_word = set_get(index->i_words, index->word_buf);
-                node->product = (indexed_word == NULL) ? (NULL) : (indexed_word->paths);
-                map_put(searched_words, token, node->product);
-            }
-            /* mark this node to not have its set destroyed, as that would break the index. */
-            node->destroy_product = 0;
-        }
+                if (map_haskey(searched_words, token)) {
+                    /* Duplicate <word> within this query. 
+                    * Get result from map instead of searching set again. */
+                    node->product = map_get(searched_words, token);
+                } else {
+                    /* search index for word, add result to node & map of searched words */
+                    index->word_buf->word = token;
+                    i_word = set_get(index->i_words, index->word_buf);
 
-        if (is_operator(node)) {
-            if (prev == NULL) {
-                msg = "Operators require adjacent terms.";
-                goto error;
+                    /* set product to the i_word paths, or NULL if <word> is not indexed. */
+                    node->product = (i_word) ? (i_word->paths) : (NULL);
+                    map_put(searched_words, token, node->product);
+                }
+                /* mark this node to not have its set destroyed, as that would break the index :^) */
+                node->free_product = 0;
             }
-            if (is_operator(prev)) {
-                msg = "Adjacent operators.";
-                goto error;
-            }
-            if (prev->type == L_PAREN) {
-                msg = "Operators may not occur directly after an opening paranthesis.";
-                goto error;
-            }
+            node->type = TERM;
+            prev_nonpar = node;
         }
 
         /* Attach node to the chain */
-        if (leftmost == NULL) {
-            leftmost = node;
-            node->left = NULL;
-        } else {
-            prev->right = node;
-            node->left = prev;
+        if (node) {
+            if (leftmost) {
+                prev->right = node;
+                node->left = prev;
+            } else {
+                leftmost = node;
+                node->left = NULL;
+            }
+            prev = node;
         }
-        prev = node;
     }
 
-    if (pile_size(paranthesis_pile) != 0) {
-        msg = "Unmatched opening paranthesis";
-        goto error;
+    /* if errmsg, avoid overwriting it. else, perform final checks. */
+    if (!errmsg) {
+        if (is_operator(prev_nonpar)) {
+            errmsg = "Query may not begin or end with an operator";
+        } else if (pile_size(paranthesis_pile)) {
+            errmsg = "Unmatched opening paranthesis";
+        }
     }
 
-    /* pop all/any parantheses pairs expanding the entire width of the query */
-    while (leftmost->r_paren == node) {
-        qnode_t *new_right = node->left;
-        leftmost = splice_nodes(leftmost, node);
-        node = new_right;
-    }
-
-    /* move node to leftmost non-parenthesis before last check */
-    while ((node != NULL) && (node->type == L_PAREN || node->type == R_PAREN)) {
-        node = node->left;
-    }
-
-    if (is_operator(leftmost) || is_operator(node)) {
-        msg = "Query may not begin or end with an operator.";
-        goto error;
-    }
-
-    goto error;
-
-    /* should be all clear. cleanup & return */
-    map_destroy(searched_words, NULL, NULL);
-    pile_destroy(paranthesis_pile);
-    list_destroyiter(tok_iter);
-
-    return leftmost;
-
-error:
-    /* clean up and format the error message before returning */
-
-    if (leftmost != NULL) {
+    if (errmsg) {
+        /* clean up and format the error message  */
         query_printnodes(NULL, leftmost, 1, 1, 1);
+
         /* clean up nodes */
         qnode_t *tmp;
-        while (leftmost != NULL) {
+        while (leftmost) {
             tmp = leftmost;
             leftmost = leftmost->right;
             free(tmp);
         }
+        leftmost = NULL;    // it was NULL, and now its double NULL
+
+        /* format error message and store it in the designated buffer */
+        snprintf(index->errmsg_buf, ERRMSG_MAXLEN, "<br>Error around token %d, <b>'%s'</b> ~ %s.", i, token, errmsg);
+    } else {
+        /* syntax seems ok! pop all/any parantheses pairs expanding the entire width of the query to ease parsing */
+        while (leftmost->r_paren == node) {
+            node = node->left;
+            leftmost = splice_nodes(leftmost, node->right);
+        }
     }
 
+    /* cleanup temp structs. leftmost will be NULL in case of an error. */
     list_destroyiter(tok_iter);
     pile_destroy(paranthesis_pile);
     map_destroy(searched_words, NULL, NULL);
 
-    if (msg && token) {
-        snprintf(index->errmsg_buf, ERRMSG_MAXLEN, "<br>Error around token %d, <b>'%s'</b> ~ %s", token_n, token, msg);
-    } else {
-        /* cannot see how the following would trigger, but anyways. */
-        strncpy(index->errmsg_buf, "undefined error", ERRMSG_MAXLEN);
-    }
-    return NULL;
+    return leftmost;
 }
 
 /* 
@@ -462,20 +437,24 @@ error:
  * returns the node to the right of left node.
  */
 static qnode_t *splice_nodes(qnode_t *l, qnode_t *r) {
-    qnode_t *new_left = l->right;
+    if (l == r) {
+        DEBUG_PRINT("splice_nodes: left == right\n");
+    }
 
     l->right->left = l->left;
-    if (l->left != NULL) {
+    if (l->left) {
         l->left->right = l->right;
     }
 
     r->left->right = r->right;
-    if (r->right != NULL) {
+    if (r->right) {
         r->right->left = r->left;
     }
 
+    qnode_t *new_left = l->right;
     free(l);
     free(r);
+
     return new_left;
 }
 
@@ -505,30 +484,30 @@ static qnode_t *term_or(qnode_t *oper) {
     set_t *rp = r_node->product;     // right product
 
     /* perform various checks to see if an union operation can be circumvented. */
-    if (lp == NULL && rp == NULL) {
+    if (!(lp || rp)) {
         self->product = NULL;
     } 
-    else if (rp == NULL) {
+    else if (!rp) {
         self->product = lp;
-        self->destroy_product = l_node->destroy_product;
+        self->free_product = l_node->free_product;
     } 
-    else if (lp == NULL) {
+    else if (!lp) {
         self->product = rp;
-        self->destroy_product = r_node->destroy_product;
+        self->free_product = r_node->free_product;
     } 
     else if (lp == rp) {
         /* Duplicate sets from equal <word> leaves, e.g. `a OR a` */
         self->product = lp;
-        self->destroy_product = 0;
+        self->free_product = 0;
     } 
     else {
         /* Both products are non-empty sets, and an union operation is nescessary. */
         self->product = set_union(lp, rp);
 
         /* free any sets created by the parser that are no longer needed */
-        if (l_node->destroy_product)
+        if (l_node->free_product)
             set_destroy(lp);
-        if (r_node->destroy_product)
+        if (r_node->free_product)
             set_destroy(rp);
     }
 
@@ -548,7 +527,7 @@ static qnode_t *term_or(qnode_t *oper) {
 static qnode_t *parse_query(qnode_t *node) {
 
     /* base case: nothing more to parse */
-    if ((node->left == NULL) && (node->right == NULL)) {
+    if (!(node->left || node->right)) {
         return node;
     }
 
@@ -567,9 +546,9 @@ static qnode_t *parse_query(qnode_t *node) {
             break;
     }
 
-    if (node->right != NULL)
+    if (node->right)
         return parse_query(node->right);
-    else if (node->left != NULL)
+    else if (node->left)
         return parse_query(node->left);
     else
         return node;
@@ -584,53 +563,56 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
         return NULL;
     }
 
-    qnode_t *leftmost = verify_tokens(index, tokens);
-    if (leftmost == NULL) {
-        *errmsg = index->errmsg_buf;
+    qnode_t *leftmost = format_tokens(index, tokens);
+    if (!leftmost) {
+        if (index->errmsg_buf) {
+            *errmsg = index->errmsg_buf;
+        } else {
+            *errmsg = "out of memory";
+        }
         return NULL;
     }
 
-    qnode_t *result = parse_query(leftmost);
-    if (result == NULL) {
+    qnode_t *parsed = parse_query(leftmost);
+    if (!parsed) {
         *errmsg = "parsing error";
         return NULL;
     }
 
-    list_t *query_results = get_query_results(result);
+    list_t *query_results = get_query_results(parsed);
+    if (!query_results) {
+        *errmsg = "out of memory";
+    }/* else {
+        score_query_results(query_result);
+    }*/
 
-    if ((result->product != NULL) && (result->destroy_product)) {
-        set_destroy(result->product);
-    }
-    free(result);
+    destroy_product(parsed);
+    free(parsed);
 
     return query_results;
 }
 
 static list_t *get_query_results(qnode_t *node) {
     list_t *query_results = list_create((cmpfunc_t)compare_query_results_by_score);
-    if (query_results == NULL) {
-        return NULL;
-    }
 
-    if (node->product != NULL) {
+    if (query_results && node->product && set_size(node->product)) {
         set_iter_t *path_iter = set_createiter(node->product);
-        if (path_iter == NULL) {
+        if (!path_iter) {
             return NULL;
         }
-
         double score = 0.0;
-        char *path;
 
-        while ((path = set_next(path_iter)) != NULL) {
+        while (set_hasnext(path_iter)) {
             query_result_t *q_result = malloc(sizeof(query_result_t));
-            if (q_result == NULL) {
-                ERROR_PRINT("out of memory");
+            if (!q_result) {
                 return NULL;
             }
-            q_result->path = path;
+            q_result->path = set_next(path_iter);
             q_result->score = score;
             score += 0.1;
-            list_addlast(query_results, q_result);
+            if (!list_addlast(query_results, q_result)) {
+                return NULL;
+            }
         }
         set_destroyiter(path_iter);
     }
@@ -640,12 +622,12 @@ static list_t *get_query_results(qnode_t *node) {
 
 
 /* 
- * ------- debugging functions -------
+ * ------- Section 3: Testing, Printing, Debugging -------
 */
 
 // static qnode_t *test_preprocessor_time(index_t *index, list_t *tokens, char **errmsg) {
 //     const unsigned long long t_start = gettime();
-//     qnode_t *leftmost = verify_tokens(index, tokens, errmsg);
+//     qnode_t *leftmost = format_tokens(index, tokens, errmsg);
 //     const unsigned long long t_end = (gettime() - t_start);
 //     if (leftmost == NULL) {
 //         return NULL;
@@ -672,7 +654,7 @@ static void query_printnodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int
         while (n != NULL) {
             switch (n->type) {
                 case 0:
-                    printf("%6d   %13c\n", n->type, (char)c);
+                    printf("%6d   %13c\n", n->type, c);
                     c = (c == 122) ? (97) : (c+1);
                     break;
                 case 1:
@@ -754,3 +736,4 @@ static void query_printnodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int
 /* make clean && make assert_index && lldb assert_index */
 /* make clean && make indexer && ./indexer data/cacm/ */
 /* sudo lsof -i -P | grep LISTEN | grep :$8080 */
+

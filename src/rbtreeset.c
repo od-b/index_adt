@@ -518,7 +518,7 @@ set_t *set_copy(set_t *set) {
 
 /* debugging stuff */
 
-/* static void print_tree(printfunc_t printfunc, set_t *tree, treenode_t* root, int height) {
+static void print_tree(int (*printfunc)(char *), set_t *tree, treenode_t* root, int height) {
     if (root == NULL) {
         return;
     }
@@ -549,9 +549,9 @@ set_t *set_copy(set_t *set) {
     print_tree(printfunc, tree, root->left, height);
 }
 
-void print_rbtreeset(set_t *set, printfunc_t printfunc) {
+void print_rbtreeset(set_t *set, int (*printfunc)(char *)) {
     print_tree(printfunc, set, set->root, 0);
-} */
+}
 
 
 /*

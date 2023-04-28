@@ -23,18 +23,16 @@
 
 
 char *copy_string(const char *src) {
-    size_t buf_size = strlen(src) + 1;     /* needed malloc size */
+    size_t len = strlen(src) + 1;
 
-    char *buf = malloc(buf_size);
-    if (buf == NULL) {
-        ERROR_PRINT("out of memory");
+    char *s = malloc(len);
+    if (s == NULL) {
         return NULL;
     }
 
-    /* copy the string to the allocated memory */
-    strncpy(buf, src, buf_size);
+    strncpy(s, src, len);
 
-    return buf;
+    return s;
 }
 
 

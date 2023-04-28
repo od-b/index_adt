@@ -17,8 +17,7 @@
 
 
 #define PORT_NUM 8080
-#define PINFO 0
-#define ADDPATH_P_SPACING 500
+#define ADDPATH_PRINT_INTERVAL 500
 
 static pthread_mutex_t query_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -214,37 +213,6 @@ static void send_results(FILE *f, char *query, list_t *results) {
     fprintf(f, "</ol>\n");
 }
 
-static void print_all_tokens(char *query, list_t *tokens) {
-    /* print query, query as list && processed spaced plaintext */
-    printf("query \t\t= '%s'\n", query);
-    list_iter_t *p_process_iter = list_createiter(tokens);
-    const size_t LEN = 511;
-    char p_str[LEN], p_list_str[LEN], *term;
-    int i = 0, n = 0;
-    p_list_str[i++] = '[';
-
-    /* ignore this abomination */
-    while ((term = list_next(p_process_iter)) != NULL) {
-        if (((n > 0) && ((p_str[n-1] != ')') && (p_str[n-1] != '(') && (term[0] != ')')))
-            || ((strcmp(term, "AND") == 0) || (strcmp(term, "OR") == 0) || (strcmp(term, "ANDNOT") == 0))) {
-            p_str[n++] = ' ';
-        }
-        p_list_str[i++] = '\'';
-        for (int j = 0; term[j] != '\0'; j++) {
-            p_list_str[i++] = p_str[n++] = term[j];
-        }
-        p_list_str[i++] = '\'';
-        if (list_hasnext(p_process_iter)) {
-            p_list_str[i++] = ',';
-            p_list_str[i++] = ' ';
-        }
-    }
-    p_list_str[i++] = ']';
-    p_list_str[i] = p_str[n] = '\0';
-    printf("plaintext \t= %s\nlist(query) =\n %s\n", p_str, p_list_str);
-    list_destroyiter(p_process_iter);
-}
-
 static void run_query(FILE *f, char *query) {
     char *errmsg;
     list_t *result;
@@ -256,9 +224,6 @@ static void run_query(FILE *f, char *query) {
     /* Don't run query if query is empty */
     if (!list_size(tokens))
         goto end;
-
-    if (PINFO)
-        print_all_tokens(query, tokens);
 
     result = index_query(idx, tokens, &errmsg);
 
@@ -480,7 +445,7 @@ int main(int argc, char **argv) {
         relpath = (char *)list_next(iter);
         fullpath = concatenate_strings(2, root_dir, relpath);
 
-        if ((n_added % ADDPATH_P_SPACING == 0) || (n_added == n_files)){
+        if ((n_added % ADDPATH_PRINT_INTERVAL == 0) || (n_added == n_files)){
             DEBUG_PRINT("Indexing %s\n", fullpath);
         }
 

@@ -1,1 +1,0 @@
-strcmp https://mgronhol.github.io/fast-strcmp/

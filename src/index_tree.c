@@ -73,12 +73,11 @@ index_t *index_create() {
     /* create the index set with a specialized compare func for the words */
     new_index->i_words = set_create((cmpfunc_t)compare_i_words_by_string);
     new_index->word_buf = malloc(sizeof(i_word_t));
-    new_index->errmsg_buf = calloc(ERRMSG_MAXLEN, sizeof(char));
+    new_index->errmsg_buf = calloc((ERRMSG_MAXLEN + 1), sizeof(char));
     if (new_index->i_words == NULL || new_index->word_buf == NULL || new_index->errmsg_buf == NULL) {
         ERROR_PRINT("out of memory");
         return NULL;
     }
-    new_index->errmsg_buf[ERRMSG_MAXLEN+1] = '\0';
     new_index->word_buf->word = NULL;
     new_index->word_buf->paths = NULL;
 
@@ -93,18 +92,16 @@ void index_destroy(index_t *index) {
     int n_freed_words = 0;
     int n_freed_paths = 0;
     set_iter_t *i_word_iter = set_createiter(index->i_words);
+    set_iter_t *path_iter;
+    set_t *all_paths = set_create((cmpfunc_t)strcmp);
 
     while (set_hasnext(i_word_iter)) {
         i_word_t *curr = set_next(i_word_iter);
-        set_iter_t *path_iter = set_createiter(curr->paths);
+        path_iter = set_createiter(curr->paths);
 
-        char *path;
         while (set_hasnext(path_iter)) {
-            path = set_next(path_iter);
-            if (path != NULL) {
-                free(path);
-                n_freed_paths++;
-            }
+            /* add to set of all paths to avoid any double free hocus pocus */
+            set_add(all_paths, set_next(path_iter));
         }
         set_destroyiter(path_iter);
 
@@ -114,9 +111,19 @@ void index_destroy(index_t *index) {
         free(curr);
         n_freed_words++;
     }
-
     set_destroyiter(i_word_iter);
     set_destroy(index->i_words);
+
+    /* free the set of all paths */
+    path_iter = set_createiter(all_paths);
+    while (set_hasnext(path_iter)) {
+        free(set_next(path_iter));
+        n_freed_paths++;
+    }
+    set_destroyiter(path_iter);
+    set_destroy(all_paths);
+
+    /* free index & co */
     free(index->word_buf);
     free(index->errmsg_buf);
     free(index);
@@ -199,9 +206,9 @@ typedef struct qnode qnode_t;
 
 struct qnode {
     int type;
-    int product_destroyable;
-    set_t *product;     /* if node with type == TERM: set product of term | NULL if empty result */
-    qnode_t *r_paren;   /* if node->type == L_PAREN: holds a pointer to the respective right parenthesis */
+    set_t *product;         /* if node with type == TERM: set product of term | NULL if empty result */
+    int destroy_product;    /* essentially whether the product set is 'borrowed' from the index, or created. */
+    qnode_t *r_paren;       /* if node->type == L_PAREN: holds a pointer to the respective right parenthesis */
     qnode_t *left;
     qnode_t *right;
 };
@@ -239,7 +246,7 @@ static int is_operator(qnode_t *node) {
 
 /* destroys the product set of a node, unless that set belongs to the index. */
 static void destroy_product(qnode_t *term) {
-    if ((term->product != NULL) && (term->product_destroyable)) {
+    if ((term->product != NULL) && (term->destroy_product)) {
         set_destroy(term->product);
     }
 }
@@ -272,7 +279,7 @@ static qnode_t *verify_tokens(index_t *index, list_t *tokens) {
         if (node == NULL) {
             return NULL;
         }
-        node->product_destroyable = 1;
+        node->destroy_product = 1;
         node->product = NULL;
         node->right = NULL;
         node->r_paren = NULL;
@@ -362,7 +369,7 @@ static qnode_t *verify_tokens(index_t *index, list_t *tokens) {
                 map_put(searched_words, token, node->product);
             }
             /* mark this node to not have its set destroyed, as that would break the index. */
-            node->product_destroyable = 0;
+            node->destroy_product = 0;
         }
 
         if (is_operator(node)) {
@@ -403,11 +410,19 @@ static qnode_t *verify_tokens(index_t *index, list_t *tokens) {
         node = new_right;
     }
 
+    /* move node to leftmost non-parenthesis before last check */
+    while ((node != NULL) && (node->type == L_PAREN || node->type == R_PAREN)) {
+        node = node->left;
+    }
+
     if (is_operator(leftmost) || is_operator(node)) {
         msg = "Query may not begin or end with an operator.";
         goto error;
     }
 
+    goto error;
+
+    /* should be all clear. cleanup & return */
     map_destroy(searched_words, NULL, NULL);
     pile_destroy(paranthesis_pile);
     list_destroyiter(tok_iter);
@@ -433,7 +448,7 @@ error:
     map_destroy(searched_words, NULL, NULL);
 
     if (msg && token) {
-        snprintf(index->errmsg_buf, ERRMSG_MAXLEN, "[Error at token no. %d, '%s']: %s", token_n, token, msg);
+        snprintf(index->errmsg_buf, ERRMSG_MAXLEN, "<br>Error around token %d, <b>'%s'</b> ~ %s", token_n, token, msg);
     } else {
         /* cannot see how the following would trigger, but anyways. */
         strncpy(index->errmsg_buf, "undefined error", ERRMSG_MAXLEN);
@@ -495,25 +510,25 @@ static qnode_t *term_or(qnode_t *oper) {
     } 
     else if (rp == NULL) {
         self->product = lp;
-        self->product_destroyable = l_node->product_destroyable;
+        self->destroy_product = l_node->destroy_product;
     } 
     else if (lp == NULL) {
         self->product = rp;
-        self->product_destroyable = r_node->product_destroyable;
+        self->destroy_product = r_node->destroy_product;
     } 
     else if (lp == rp) {
         /* Duplicate sets from equal <word> leaves, e.g. `a OR a` */
         self->product = lp;
-        self->product_destroyable = 0;
+        self->destroy_product = 0;
     } 
     else {
         /* Both products are non-empty sets, and an union operation is nescessary. */
         self->product = set_union(lp, rp);
 
         /* free any sets created by the parser that are no longer needed */
-        if (l_node->product_destroyable)
+        if (l_node->destroy_product)
             set_destroy(lp);
-        if (r_node->product_destroyable)
+        if (r_node->destroy_product)
             set_destroy(rp);
     }
 
@@ -576,16 +591,20 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
     }
 
     qnode_t *result = parse_query(leftmost);
-
     if (result == NULL) {
         *errmsg = "parsing error";
         return NULL;
     }
 
-    return get_query_results(result);
-}
+    list_t *query_results = get_query_results(result);
 
-/* misc helper functions */
+    if ((result->product != NULL) && (result->destroy_product)) {
+        set_destroy(result->product);
+    }
+    free(result);
+
+    return query_results;
+}
 
 static list_t *get_query_results(qnode_t *node) {
     list_t *query_results = list_create((cmpfunc_t)compare_query_results_by_score);
@@ -648,12 +667,12 @@ static void query_printnodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int
     qnode_t *n = leftmost;
     if (DETAILS) {
         char *msg;
-        printf("%6s   %13s   %8s\n", "type", "token", "depth");
+        printf("%6s   %13s\n", "type", "token");
         int c = 97;
         while (n != NULL) {
             switch (n->type) {
                 case 0:
-                    printf("%6d   %13c", n->type, (char)c);
+                    printf("%6d   %13c\n", n->type, (char)c);
                     c = (c == 122) ? (97) : (c+1);
                     break;
                 case 1:

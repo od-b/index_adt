@@ -66,9 +66,9 @@ typedef struct qnode qnode_t;
 struct qnode {
     qnode_types_t type;
     char     *token;
-    set_t    *prod;           /* product of a completed term. will be a set or NULL. */
-    int       free_prod;   /* track if the product points to an indexed set or a gen2 set, e.g. union. */
-    qnode_t  *r_paren;        /* L_PAREN only. Holds a pointer to the respective right parenthesis */
+    set_t    *prod;       /* product of a completed term. will be a set or NULL. */
+    int       free_prod;  /* track if the product points to an indexed set or a gen2 set, e.g. union. */
+    qnode_t  *par;        /* parentheses only. Links respective left/right parentheses */
     qnode_t  *left;
     qnode_t  *right;
     int pos;
@@ -336,7 +336,7 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
         /* initialize the node using default values */
         node->prod = NULL;
         node->right = NULL;
-        node->r_paren = NULL;
+        node->par = NULL;
         node->free_prod = 1;
 
         // DEBUG
@@ -373,8 +373,9 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
                     node = NULL; // not strictly needed, but ensures if(node) will not be true.
                 }
             } else {
-                /* link the left paranthesis to its right counterpart */
-                l_paren->r_paren = node;
+                /* link the parantheses */
+                l_paren->par = node;
+                node->par = l_paren;
             }
         } else if (isupper(token[0])) {
             /* match the type of operator */
@@ -425,7 +426,7 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
                     *do_parse = 1;
                 // DEBUGGING
                 if (ASSERT_PARSE) {
-                    node->token = (node->prod) ? (node->token) : ("0");
+                    node->token = (node->prod) ? (node->token) : ("X");
                 }
             }
         }
@@ -469,7 +470,7 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
         snprintf(index->errmsg_buf, ERRMSG_MAXLEN, "<br>Error around token %d, <b>'%s'</b> ~ %s.", i, token, errmsg);
     } else {
         /* syntax seems ok! pop all/any parantheses pairs expanding the entire width of the query to ease parsing */
-        while (leftmost->r_paren == node) {
+        while (leftmost->par == node) {
             node = node->left;
             leftmost = splice_nodes(leftmost, node->right);
         }
@@ -485,15 +486,14 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
 
 static qnode_t *parse_query(qnode_t *node) {
     if (!node->left && !node->right) {
+        printf("^^^ returning node %s\n", node->token);
         return node;
-    } else if (!node->right) {
-        printf("<<\n");
-        return parse_query(node->left);
     }
 
     switch (node->type) {
-        case L_PAREN:
-            return parse_query(splice_nodes(node, node->r_paren));
+        case R_PAREN:
+            printf("<<< goto l_paren\n");
+            return parse_query(splice_nodes(node->par, node));
         case OP_OR:
             return term_or(node);
         case OP_AND:
@@ -501,8 +501,15 @@ static qnode_t *parse_query(qnode_t *node) {
         case OP_ANDNOT:
             return term_andnot(node);
         default:
-            printf(">>\n");
-            return parse_query(node->right);
+            break;
+    }
+
+    if (node->right) {
+        printf(">>\n");
+        return parse_query(node->right);
+    } else {
+        printf("<<\n");
+        return parse_query(node->left);
     }
 }
 
@@ -516,26 +523,22 @@ static qnode_t *term_or(qnode_t *oper) {
     set_t *l_prod = a->prod;
     set_t *r_prod = c->prod;
 
-    /* perform various checks to see if an union operation can be circumvented. */
+    /* perform checks to see if an union operation can be circumvented. */
     if (!l_prod && !r_prod) {
         oper->prod = NULL;
-    } 
-    else if (!r_prod) {
-        /* inherit the product of the left term */
+        printf("set operation avoided: null-set\n");
+    } else if (!r_prod || (l_prod == r_prod)) {
+        /* Combined trigger. either left set is NULL, or sets are duplicate 
+         * pointers from from equal <word> leaves, e.g. `a OR a` */
         oper->prod = l_prod;
         oper->free_prod = a->free_prod;
-    } 
-    else if (!l_prod) {
+        printf("set operation avoided: inherited left set\n");
+    } else if (!l_prod) {
         /* inherit the product of the right term */
         oper->prod = r_prod;
         oper->free_prod = c->free_prod;
-    } 
-    else if (l_prod == r_prod) {
-        /* Duplicate sets from equal <word> leaves, e.g. `a OR a` */
-        oper->prod = l_prod;
-        oper->free_prod = 0;
-    } 
-    else {
+        printf("set operation avoided: inherited right set\n");
+    } else {
         /* Both products are non-empty sets, and an union operation is nescessary. */
         oper->prod = set_union(l_prod, r_prod);
         oper->free_prod = 1; 
@@ -543,6 +546,7 @@ static qnode_t *term_or(qnode_t *oper) {
         /* free sets that are no longer needed */
         destroy_product(a);
         destroy_product(c);
+        printf("created union set\n");
     }
 
     /* consume the terms and return self as a term. */
@@ -849,4 +853,39 @@ static void print_querynodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int
 /* make clean && make indexer && ./indexer data/cacm/ */
 /* sudo lsof -i -P | grep LISTEN | grep :$8080 */
 
+/*
+Original:  `(a OR b) OR (c OR (x OR y OR k)) OR (d OR e) OR f`
 
+>>
+>>
+a ->  [aORb]  <- b
+>>
+<< goto left paren
+>>
+>>
+>>
+>>
+>>
+x ->  [xORy]  <- y
+>>
+[xORy] ->  [[xORy]ORk]  <- k
+>>
+<< goto left paren
+>>
+<< goto left paren
+>>
+c ->  [cOR[[xORy]ORk]]  <- [[xORy]ORk]
+>>
+>>
+>>
+d ->  [dORe]  <- e
+>>
+<< goto left paren
+>>
+[dORe] ->  [[dORe]ORf]  <- f
+<<
+[cOR[[xORy]ORk]] ->  [[cOR[[xORy]ORk]]OR[[dORe]ORf]]  <- [[dORe]ORf]
+<<
+[aORb] ->  [[aORb]OR[[cOR[[xORy]ORk]]OR[[dORe]ORf]]]  <- [[cOR[[xORy]ORk]]OR[[dORe]ORf]]
+
+*/

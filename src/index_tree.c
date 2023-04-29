@@ -45,10 +45,9 @@ static list_t *get_query_results(qnode_t *node);
 static void destroy_product(qnode_t *term);
 static int is_operator(qnode_t *node);
 
-static qnode_t *assert_term_or(qnode_t *a);
-static void print_query(char *msg, list_t *tokens, qnode_t *leftmost);
+static void debug_print_query(char *msg, list_t *tokens, qnode_t *leftmost);
 static void print_term(qnode_t *oper, char *op);
-
+static void debug_print_catname(qnode_t *oper);
 
 /* Type of index */
 struct index {
@@ -247,7 +246,8 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
         *errmsg = "empty query";
         return NULL;
     }
-    if (ASSERT_PARSE) print_query("\n[pre id]", tokens, NULL);
+    DEBUG_PRINT("\n\n----------------------------------------\n");
+    if (ASSERT_PARSE) debug_print_query("[pre id]", tokens, NULL);
 
     int n_matched_words = 0;
     qnode_t *leftmost = identify_tokens(index, tokens, &n_matched_words);
@@ -261,11 +261,11 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
     }
 
 
-    // if (ASSERT_PARSE) print_query(tokens, leftmost, 1, 0, 0);
+    // if (ASSERT_PARSE) debug_print_query(tokens, leftmost, 1, 0, 0);
 
     qnode_t *parsed = NULL;
     if (n_matched_words) {
-        if (ASSERT_PARSE) print_query("[pre parse]", NULL, leftmost);
+        if (ASSERT_PARSE) debug_print_query("[pre parse]", NULL, leftmost);
 
         parsed = parse_query(leftmost);
         if (!parsed) {
@@ -441,7 +441,7 @@ static qnode_t *identify_tokens(index_t *index, list_t *tokens, int *n_matched_w
 
     if (errmsg) {
         /* clean up and format the error message  */
-        print_query("[error]", NULL, leftmost);
+        debug_print_query("[error]", NULL, leftmost);
 
         /* clean up nodes */
         qnode_t *tmp;
@@ -470,6 +470,10 @@ static qnode_t *parse_query(qnode_t *node) {
         return node;
     }
 
+    // while (node->type == L_PAREN) {
+    //     node = node->right;
+    // }
+
     switch (node->type) {
         case R_PAREN:
             printf("<<< goto l_paren\n");
@@ -492,7 +496,9 @@ static qnode_t *parse_query(qnode_t *node) {
     }
 }
 
-static qnode_t *term_or(qnode_t *oper) {
+
+static qnode_t *term_andnot(qnode_t *oper) {
+    assert(oper->type == OP_ANDNOT);
     qnode_t *a = oper->left;
     qnode_t *c = oper->right;
 
@@ -501,6 +507,114 @@ static qnode_t *term_or(qnode_t *oper) {
         return parse_query(c);
     }
 
+    printf("[term_andnot] ");
+    if (a->prod == c->prod) {
+        /* sets are either both NULL, or a and c are the same <word>.
+         * self will be NULL either way.
+         * (No need to destroy, as the sets 'belong' to the index <word> if equal) */
+        oper->prod = NULL;
+        printf("case 0: empty sets: ");
+    } else if (!a->prod || !c->prod) {
+        // Combined case. 1) ø - a == ø; 2) a - ø == a;
+        oper->prod = a->prod;
+        oper->free_prod = a->free_prod;
+        assert(oper->prod == NULL || (oper->prod == a->prod && set_size(oper->prod)));
+    }
+    else {
+        /* Both products are non-empty sets. Produce the difference. */
+        oper->prod = set_difference(a->prod, c->prod);
+        oper->free_prod = 1;
+
+        /* if the new set is empty, destroy it as well :^( */
+        if (!set_size(oper->prod)) {
+            set_destroy(oper->prod);
+            oper->prod = NULL;
+            printf("new empty insct.: ");
+        } else {
+            printf("new insct.: ");
+        }
+        /* Free sets that are no longer needed */
+        destroy_product(a);
+        destroy_product(c);
+    }
+
+    /* Consume the terms and re-parse self. */
+    debug_print_catname(oper);
+    oper->type = TERM;
+    return parse_query(splice_nodes(a, c));
+}
+
+
+// <andterm> ::=  <orterm> | <orterm> "AND" <andterm>
+static qnode_t *term_and(qnode_t *oper) {
+    assert(oper->type == OP_AND);
+    qnode_t *a = oper->left;
+    qnode_t *c = oper->right;
+
+    if (oper->right->type != TERM) {
+        /* Cannot terminate right yet, parse subquery first. */
+        return parse_query(c);
+    }
+
+    printf("[term_and] ");
+    /* Perform checks to see if a intersection operation is nescessary. */
+    if (!a->prod || !c->prod) {
+        /* One set is empty, and nullifies the need for any operation. */
+        oper->prod = NULL;
+        destroy_product(a);
+        destroy_product(c);
+        printf("case 0: min. one empty set: ");
+    }
+    else if (a->prod == c->prod) {
+        /* Same <word>'s. `x AND x` == x. Inherit set of a. */
+        oper->prod = a->prod;
+        oper->free_prod = a->free_prod;
+        destroy_product(c);
+        printf("case 1: inherited left set: ");
+        assert(set_size(a->prod) == set_size(c->prod));
+    }
+    else {
+        /* Both products are non-empty sets. Produce the intersection. */
+        oper->prod = set_intersection(a->prod, c->prod);
+        oper->free_prod = 1;
+
+        assert(set_size(a->prod) > 0);
+        assert(set_size(c->prod) > 0);
+
+        assert(set_size(oper->prod) <= set_size(a->prod));
+        assert(set_size(oper->prod) <= set_size(c->prod));
+
+        /* if the new set is empty, destroy it as well :^( */
+        if (!set_size(oper->prod)) {
+            set_destroy(oper->prod);
+            oper->prod = NULL;
+            printf("new empty diff.: ");
+        } else {
+            printf("new diff.: ");
+        }
+        /* Free sets that are no longer needed */
+        destroy_product(a);
+        destroy_product(c);
+    }
+
+    /* Consume the terms and re-parse self. */
+    debug_print_catname(oper);
+    oper->type = TERM;
+    return parse_query(splice_nodes(a, c));
+}
+
+/* a OR b OR ((c) OR k OR (y OR l)) OR x OR (j) OR k OR (x OR y) OR j */
+static qnode_t *term_or(qnode_t *oper) {
+    assert(oper->type == OP_OR);
+    qnode_t *a = oper->left;
+    qnode_t *c = oper->right;
+
+    if (oper->right->type != TERM) {
+        /* Cannot terminate right yet, parse subquery first. */
+        return parse_query(c);
+    }
+
+    printf("[term_or] ");
     /* Perform checks to see if an union operation is nescessary. */
     if (!a->prod && !c->prod) {
         oper->prod = NULL;
@@ -509,6 +623,9 @@ static qnode_t *term_or(qnode_t *oper) {
     else if (!c->prod || (a->prod == c->prod)) {
         /* Combined trigger. either left set is NULL, or sets are duplicate
          * pointers from from equal <word> leaves, e.g. `a OR a` */
+        if (!c->prod) {
+            assert(set_size(a->prod) == set_size(c->prod));
+        }
         oper->prod = a->prod;
         oper->free_prod = a->free_prod;
         printf("case 1 '%s': inherited left set: ", c->token);
@@ -523,24 +640,68 @@ static qnode_t *term_or(qnode_t *oper) {
         /* Both products are non-empty sets, and an union operation is nescessary. */
         oper->prod = set_union(a->prod, c->prod);
         oper->free_prod = 1;
+        assert(set_size(a->prod) > 0);
+        assert(set_size(c->prod) > 0);
+
+        assert(set_size(oper->prod) >= set_size(a->prod));
+        assert(set_size(oper->prod) >= set_size(c->prod));
+        assert(set_size(oper->prod) <= (set_size(a->prod) + set_size(c->prod)));
+
 
         /* Free sets that are no longer needed */
         destroy_product(a);
         destroy_product(c);
-        printf("created union set: ");
+        printf("new union: ");
     }
 
-    /* Consume the terms and parse self. */
+    /* Consume the terms and re-parse self. */
+    debug_print_catname(oper);
     oper->type = TERM;
     return parse_query(splice_nodes(a, c));
 }
 
-static qnode_t *term_andnot(qnode_t *oper) {
-    return NULL;
+/*
+ * Destroys two nodes, denoted a and z, without dismembering any adjacent nodes.
+ * There must exist at least one node node inbetween a and z. Returns a->right.
+ */
+static qnode_t *splice_nodes(qnode_t *a, qnode_t *z) {
+    if (a->right == z) {
+        ERROR_PRINT("splice_nodes: missing node b\n");
+    }
+    qnode_t *b = a->right;
+
+    b->left = a->left;
+    if (a->left) {
+        a->left->right = b;
+    }
+
+    z->left->right = z->right;
+    if (z->right) {
+        z->right->left = z->left;
+    }
+
+    free(a);
+    free(z);
+
+    return b;
 }
 
-static qnode_t *term_and(qnode_t *oper) {
-    return NULL;
+/*
+ * Destroys the product of a node unless it is inherited from an indexed word.
+ * NULL-safe for both term and its prod. Does not destroy the node itself.
+ */
+static void destroy_product(qnode_t *term) {
+    if (term && (term->prod && term->free_prod)) {
+        set_destroy(term->prod);
+        term->prod = NULL;
+    }
+}
+
+/* return 0 on NULL or non-operator, otherwise returns operator type */
+static int is_operator(qnode_t *node) {
+    if (node && (node->type > 0))
+        return node->type;
+    return 0;
 }
 
 /* Returns a list of query results containing each path in a term product. */
@@ -576,156 +737,33 @@ static list_t *get_query_results(qnode_t *term) {
 }
 
 
-/* -- section 2 helper functions -- */
-
-/*
- * Destroys two nodes, denoted a and z, without dismembering any adjacent nodes.
- * There must exist at least one node node inbetween a and z. Returns a->right.
- */
-static qnode_t *splice_nodes(qnode_t *a, qnode_t *z) {
-    if (a->right == z) {
-        ERROR_PRINT("splice_nodes: missing node b\n");
-    }
-    qnode_t *b = a->right;
-
-    b->left = a->left;
-    if (a->left) {
-        a->left->right = b;
-    }
-
-    z->left->right = z->right;
-    if (z->right) {
-        z->right->left = z->left;
-    }
-
-    if (ASSERT_PARSE && (a->type >= 0) && (b->type == TERM)) {
-        if (b->prod && b->prod != a->prod && b->prod != z->prod) {
-            b->token = concatenate_strings(5, "[", a->token, b->token, z->token, "]");
-            printf("%s ->  %s  <- %s\n", a->token, b->token, z->token);
-        } else {
-            b->token = (b->prod == a->prod) ? (a->token) : (z->token);
-            printf(" < %s > \n", b->token);
-        }
-    }
-
-    free(a);
-    free(z);
-
-    return b;
-}
-
-/*
- * Destroys the product of a node unless it is inherited from an indexed word.
- * Does not destroy the node itself.
- */
-static void destroy_product(qnode_t *term) {
-    if (term && (term->prod && term->free_prod)) {
-        set_destroy(term->prod);
-        term->prod = NULL;
-    }
-}
-
-/* return 0 on NULL or non-operator, otherwise returns operator type */
-static int is_operator(qnode_t *node) {
-    if (node && (node->type > 0))
-        return node->type;
-    return 0;
-}
-
-// /* return 0 on NULL or nonpar, otherwise returns paranthesis type */
-// static int is_parenthesis(qnode_t *node) {
-//     if (node && (node->type < 0))
-//         return node->type;
-//     return 0;
-// }
-
 /*
  * ------- Section 3: Testing, Printing, Debugging -------
 */
 
-static qnode_t *assert_term_or(qnode_t *a) {
-    qnode_t *self = a->right;
-    qnode_t *c = self->right;
-
-    if (c != TERM) {
-        printf("[assert_or] > case 0");
-        print_term(c->left, "OR");
-
-        c = parse_query(c);
+static void debug_print_catname(qnode_t *oper) {
+    if (oper) {
+        qnode_t *a = oper->left;
+        qnode_t *b = oper;
+        qnode_t *c = oper->right;
+        b->token = concatenate_strings(5, "[", a->token, b->token, c->token, "]");
+        switch (a->right->type) {
+            case OP_OR:
+                printf("%s U-->  %s  <--U %s\n", a->token, b->token, c->token);
+                break;
+            case OP_AND:
+                printf("%s &-->  %s  <--& %s\n", a->token, b->token, c->token);
+                break;
+            case OP_ANDNOT:
+                printf("%s /-->  %s  <--/ %s\n", a->token, b->token, c->token);
+                break;
+            default:
+                break;
+        }
     }
-
-
-    printf("[assert_or] > ");
-    /* perform various checks to see if an union operation can be circumvented. */
-    if (!a->prod && !c->prod) {
-        self->prod = NULL;
-
-        printf("case 1: l = r = 0");
-        self->token = a->token;
-    }
-    else if (!c->prod) {
-        /* inherit the product of the left term */
-        self->prod = a->prod;
-        self->free_prod = a->free_prod;
-
-        printf("case 2: r = 0, inherit L set_size(%d)", set_size(a->prod));
-        self->token = a->token;
-    }
-    else if (!a->prod) {
-        /* inherit the product of the right term */
-        self->prod = c->prod;
-        self->free_prod = c->free_prod;
-
-        printf("case 3: l = 0, inherit R, set_size(%d)", set_size(c->prod));
-        self->token = a->token;
-    }
-    else if (a->prod == c->prod) {
-        /* Duplicate sets from equal <word> leaves, e.g. `a OR a` */
-        self->prod = a->prod;
-        self->free_prod = 0;
-
-        printf("case 4: L == R, inherit left          ");
-        self->token = concatenate_strings(4, "[", a->token, c->token, "]");
-        if (a->prod)
-            assert(set_size(a->prod) == set_size(c->prod));
-    }
-    else {
-        /* Both products are non-empty sets, and an union operation is nescessary. */
-        self->prod = set_union(a->prod, c->prod);
-        self->free_prod = 1;
-
-        printf("case 5: union                         ");
-        self->token = concatenate_strings(5, "[", a->token, self->token, c->token, "]");
-
-        assert(set_size(self->prod) >= set_size(a->prod));
-        assert(set_size(self->prod) >= set_size(c->prod));
-
-        /* free sets that are no longer needed */
-        destroy_product(a);
-        destroy_product(c);
-    }
-    print_term(self, "OR");
-    printf("   >>   ");
-    /* consume the terms and return self as a term. */
-    self->type = TERM;
-    return parse_query(splice_nodes(a, c));
 }
 
-static void print_term(qnode_t *oper, char *op) {
-    /* this will not be pretty */
-    size_t len = strlen(oper->left->token) + strlen(op) + strlen(oper->right->token) + 3;
-    size_t diff = 40-len;
-    if (diff <= 1) diff = 3;
-
-    char space_buf[diff+1];
-    memset(space_buf, ' ', (sizeof(char) * diff));
-    space_buf[diff] = '\0';
-
-    printf("%s", space_buf);
-    printf(" %s '%s' %s ", oper->left->token, op, oper->right->token);
-}
-
-static void print_query(char *msg, list_t *tokens, qnode_t *leftmost) {
+static void debug_print_query(char *msg, list_t *tokens, qnode_t *leftmost) {
     if (msg) printf("%s", msg);
     printf("[q_");
 

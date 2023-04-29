@@ -65,3 +65,26 @@ static void print_char_set(set_t *chars) {
 //     printf("%11d %14llu\n", index->run_number, t_end);
 //     return leftmost;
 // }
+
+
+static void print_term(qnode_t *oper, char *op) {
+    /* this will not be pretty */
+    size_t len = strlen(oper->left->token) + strlen(op) + strlen(oper->right->token) + 3;
+    size_t diff = 40-len;
+    if (diff <= 1) diff = 3;
+
+    char space_buf[diff+1];
+    memset(space_buf, ' ', (sizeof(char) * diff));
+    space_buf[diff] = '\0';
+
+    printf("%s", space_buf);
+    printf(" %s '%s' %s ", oper->left->token, op, oper->right->token);
+}
+
+
+// /* return 0 on NULL or nonpar, otherwise returns paranthesis type */
+// static int is_parenthesis(qnode_t *node) {
+//     if (node && (node->type < 0))
+//         return node->type;
+//     return 0;
+// }

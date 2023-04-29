@@ -199,7 +199,7 @@ static void send_results(FILE *f, char *query, list_t *results, unsigned long lo
     if (!n_results) {
         fprintf(f, "<hr/><h3>Your query for \"%s\" returned no results</h3>\n", tmp);
         printf("... in %4.fms\n", ms_time);
-    } else if (ms_time > 1.0) {
+    } else if (ms_time > 10.0) {
         fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result(s) in %.1fms</h3>\n",
             tmp, n_results, ms_time);
     } else {

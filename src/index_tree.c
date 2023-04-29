@@ -273,7 +273,7 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
     }
 
     if (ASSERT_PARSE) {
-        print_querynodes(tokens, leftmost, 1, 1, 0);
+        print_querynodes(tokens, leftmost, 1, 0, 0);
     }
 
     qnode_t *parsed = NULL;
@@ -425,9 +425,9 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
                 if (node->prod) 
                     *do_parse = 1;
                 // DEBUGGING
-                if (ASSERT_PARSE) {
-                    node->token = (node->prod) ? (node->token) : ("X");
-                }
+                // if (ASSERT_PARSE) {
+                //     node->token = (node->prod) ? (node->token) : ("X");
+                // }
             }
         }
 
@@ -526,18 +526,18 @@ static qnode_t *term_or(qnode_t *oper) {
     /* perform checks to see if an union operation can be circumvented. */
     if (!l_prod && !r_prod) {
         oper->prod = NULL;
-        printf("set operation avoided: null-set\n");
+        printf("set operation avoided with (%s && %s): null-sets.\n", a->token, c->token);
     } else if (!r_prod || (l_prod == r_prod)) {
         /* Combined trigger. either left set is NULL, or sets are duplicate 
          * pointers from from equal <word> leaves, e.g. `a OR a` */
         oper->prod = l_prod;
         oper->free_prod = a->free_prod;
-        printf("set operation avoided: inherited left set\n");
+        printf("set operation avoided with '%s': inherited left set:\n", c->token);
     } else if (!l_prod) {
         /* inherit the product of the right term */
         oper->prod = r_prod;
         oper->free_prod = c->free_prod;
-        printf("set operation avoided: inherited right set\n");
+        printf("set operation avoided with '%s': inherited right set:\n", a->token);
     } else {
         /* Both products are non-empty sets, and an union operation is nescessary. */
         oper->prod = set_union(l_prod, r_prod);
@@ -617,9 +617,14 @@ static qnode_t *splice_nodes(qnode_t *a, qnode_t *z) {
         z->right->left = z->left;
     }
 
-    if (ASSERT_PARSE && a->type >= 0) {
-        b->token = concatenate_strings(5, "[", a->token, b->token, z->token, "]");
-        printf("%s ->  %s  <- %s\n", a->token, b->token, z->token);
+    if (ASSERT_PARSE && (a->type >= 0) && (b->type == TERM)) {
+        if (b->prod && b->prod != a->prod && b->prod != z->prod) {
+            b->token = concatenate_strings(5, "[", a->token, b->token, z->token, "]");
+            printf("%s ->  %s  <- %s\n", a->token, b->token, z->token);
+        } else {
+            b->token = (b->prod == a->prod) ? (a->token) : (z->token);
+            printf(" < %s > \n", b->token);
+        }
     }
 
     free(a);
@@ -887,5 +892,29 @@ d ->  [dORe]  <- e
 [cOR[[xORy]ORk]] ->  [[cOR[[xORy]ORk]]OR[[dORe]ORf]]  <- [[dORe]ORf]
 <<
 [aORb] ->  [[aORb]OR[[cOR[[xORy]ORk]]OR[[dORe]ORf]]]  <- [[cOR[[xORy]ORk]]OR[[dORe]ORf]]
+
+------
+
+Original:  `horse OR dog OR x OR banana OR cow OR fish OR cat`
+>>
+set operation avoided with (horse && dog): null-sets.
+ < horse > 
+>>
+set operation avoided with 'horse': inherited right set:
+ < x > 
+>>
+set operation avoided with 'banana': inherited left set:
+ < x > 
+>>
+set operation avoided with 'cow': inherited left set:
+ < x > 
+>>
+set operation avoided with 'fish': inherited left set:
+ < x > 
+>>
+created union set
+x ->  [xORcat]  <- cat
+^^^ returning node [xORcat]
+
 
 */

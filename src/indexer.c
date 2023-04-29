@@ -460,7 +460,7 @@ int main(int argc, char **argv) {
         relpath = (char *)list_next(iter);
         fullpath = concatenate_strings(2, root_dir, relpath);
 
-        if ((n_added % ADDPATH_PRINT_INTERVAL == 0) || (n_added == n_files)){
+        if ((n_added % ADDPATH_PRINT_INTERVAL == 0) || (n_added == n_files)) {
             DEBUG_PRINT("Indexing %s\n", fullpath);
         }
 

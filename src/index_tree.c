@@ -1,13 +1,13 @@
 /*
  * Index ADT implementation relying mainly on the use of tree-based set(s).
- * 
+ *
  * In an attempt to improve readability, the code within this file is split into sections.
  * Sections 1 & 2 consist solely of functions.
- * 
- * 0. Forward declarations, typedefs, struct initialization. 
+ *
+ * 0. Forward declarations, typedefs, struct initialization.
  * 1. Creating and building the index
  * 2. Query handling, parsing
- * 
+ *
  */
 
 #include "index.h"
@@ -83,7 +83,7 @@ struct qnode {
     char     *token;
     set_t    *prod;        // product of a completed term. will be a set or NULL.
     int       free_prod;   // track if the product points to an indexed set or a 'temp' set, e.g. union.
-    qnode_t  *par;         // parentheses only. Links respective left/right parentheses 
+    qnode_t  *par;         // parentheses only. Links respective left/right parentheses
     qnode_t  *left;
     qnode_t  *right;
     int pos;
@@ -147,7 +147,7 @@ void index_destroy(index_t *index) {
     int n_freed_words = 0;
     int n_freed_paths = 0;
 
-    /* Set to group all paths before freeing them. Avoids any hocus pocus 
+    /* Set to group all paths before freeing them. Avoids any hocus pocus
      * such as double free or potentially dismembering trees */
     set_t *all_paths = set_create((cmpfunc_t)strcmp);
     set_iter_t *iword_iter = set_createiter(index->iwords);
@@ -247,7 +247,7 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
         *errmsg = "empty query";
         return NULL;
     }
-    if (ASSERT_PARSE) print_query("\n", tokens, NULL);
+    if (ASSERT_PARSE) print_query("\n[pre id]", tokens, NULL);
 
     int n_matched_words = 0;
     qnode_t *leftmost = identify_tokens(index, tokens, &n_matched_words);
@@ -265,7 +265,7 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
 
     qnode_t *parsed = NULL;
     if (n_matched_words) {
-        if (ASSERT_PARSE) print_query("pre parse", NULL, leftmost);
+        if (ASSERT_PARSE) print_query("[pre parse]", NULL, leftmost);
 
         parsed = parse_query(leftmost);
         if (!parsed) {
@@ -313,7 +313,7 @@ static qnode_t *identify_tokens(index_t *index, list_t *tokens, int *n_matched_w
     leftmost = prev = prev_nonpar = node = l_paren = NULL;
     errmsg = token = NULL;
     iword = NULL;
-    int i = 0;  // iteration count, to improve msg in case of error
+    int i = 0;  // iteration count, to improve message in event of an error
 
     while (!errmsg && list_hasnext(tok_iter)) {
         node = malloc(sizeof(qnode_t));
@@ -441,7 +441,7 @@ static qnode_t *identify_tokens(index_t *index, list_t *tokens, int *n_matched_w
 
     if (errmsg) {
         /* clean up and format the error message  */
-        print_query("error", NULL, leftmost);
+        print_query("[error]", NULL, leftmost);
 
         /* clean up nodes */
         qnode_t *tmp;
@@ -454,13 +454,7 @@ static qnode_t *identify_tokens(index_t *index, list_t *tokens, int *n_matched_w
 
         /* print a formatted error message to the designated buffer */
         snprintf(index->errmsg_buf, ERRMSG_MAXLEN, "<br>Error around token %d, <b>'%s'</b> ~ %s.", i, token, errmsg);
-    } /* else {
-        // pop all/any parantheses pairs expanding the entire width of the query
-        while (leftmost->par == node) {
-            node = node->left;
-            leftmost = splice_nodes(leftmost, node->right);
-        }
-    } */
+    }
 
     /* cleanup temp structs. leftmost will be NULL in case of an error. */
     list_destroyiter(tok_iter);
@@ -472,13 +466,14 @@ static qnode_t *identify_tokens(index_t *index, list_t *tokens, int *n_matched_w
 
 static qnode_t *parse_query(qnode_t *node) {
     if (!node->left && !node->right) {
-        printf("^^^ returning node %s\n", node->token);
+        printf("^^^ returning node: %s\n", node->token);
         return node;
     }
 
     switch (node->type) {
         case R_PAREN:
             printf("<<< goto l_paren\n");
+            /* end of query/subquery. pop parantheses and go to lparen->right */
             return parse_query(splice_nodes(node->par, node));
         case OP_OR:
             return term_or(node);
@@ -487,15 +482,13 @@ static qnode_t *parse_query(qnode_t *node) {
         case OP_ANDNOT:
             return term_andnot(node);
         default:
-            break;
-    }
-
-    if (node->right) {
-        printf(">>\n");
-        return parse_query(node->right);
-    } else {
-        printf("<<\n");
-        return parse_query(node->left);
+            if (node->right) {
+                printf(">>\n");
+                return parse_query(node->right);
+            } else {
+                printf("<<\n");
+                return parse_query(node->left);
+            }
     }
 }
 
@@ -503,41 +496,41 @@ static qnode_t *term_or(qnode_t *oper) {
     qnode_t *a = oper->left;
     qnode_t *c = oper->right;
 
-    /* cannot terminate right yet, go deeper. */
     if (oper->right->type != TERM) {
+        /* Cannot terminate right yet, parse subquery first. */
         return parse_query(c);
     }
 
-    /* perform checks to see if an union operation is nescessary. */
+    /* Perform checks to see if an union operation is nescessary. */
     if (!a->prod && !c->prod) {
         oper->prod = NULL;
-        printf("case 0 (%s && %s): null-sets.\n", a->token, c->token);
-    } 
+        printf("case 0 (%s && %s): null-sets. ", a->token, c->token);
+    }
     else if (!c->prod || (a->prod == c->prod)) {
         /* Combined trigger. either left set is NULL, or sets are duplicate
          * pointers from from equal <word> leaves, e.g. `a OR a` */
         oper->prod = a->prod;
         oper->free_prod = a->free_prod;
-        printf("case 1 '%s': inherited left set:\n", c->token);
-    } 
+        printf("case 1 '%s': inherited left set: ", c->token);
+    }
     else if (!a->prod) {
-        /* inherit the product of the right term */
+        /* Inherit the product of the right term */
         oper->prod = c->prod;
         oper->free_prod = c->free_prod;
-        printf("case 2 '%s': inherited right set:\n", a->token);
-    } 
+        printf("case 2 '%s': inherited right set: ", a->token);
+    }
     else {
         /* Both products are non-empty sets, and an union operation is nescessary. */
         oper->prod = set_union(a->prod, c->prod);
         oper->free_prod = 1;
 
-        /* free sets that are no longer needed */
+        /* Free sets that are no longer needed */
         destroy_product(a);
         destroy_product(c);
-        printf("created union set\n");
+        printf("created union set: ");
     }
 
-    /* consume the terms and return self as a term. */
+    /* Consume the terms and parse self. */
     oper->type = TERM;
     return parse_query(splice_nodes(a, c));
 }
@@ -738,10 +731,13 @@ static void print_query(char *msg, list_t *tokens, qnode_t *leftmost) {
 
     if (tokens) {
         list_iter_t *tok_iter = list_createiter(tokens);
-        printf("tokens] = `");
+        printf("tokens]\t`");
         while (list_hasnext(tok_iter)) {
-            printf("%s ", (char *)list_next(tok_iter));
-            // (list_hasnext(tok_iter)) ? (printf(" ")) : (printf("`\n"));
+            char *tok = (char *)list_next(tok_iter);
+            if (isupper(tok[0]))
+                printf(" %s ", tok);
+            else
+                printf("%s", tok);
         }
         printf("`\n");
         list_destroyiter(tok_iter);
@@ -749,7 +745,7 @@ static void print_query(char *msg, list_t *tokens, qnode_t *leftmost) {
 
     if (leftmost) {
         qnode_t *n = leftmost;
-        printf("nodes]: `");
+        printf("nodes]\t`");
         // int c = 97;
         while (n) {
             switch (n->type) {

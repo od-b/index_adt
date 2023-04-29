@@ -1,8 +1,8 @@
-/* 
- * Authors: 
- * Steffen Viken Valvaag <steffenv@cs.uit.no> 
- * Magnus Stenhaug <magnus.stenhaug@uit.no> 
- * Erlend Helland Graff <erlend.h.graff@uit.no> 
+/*
+ * Authors:
+ * Steffen Viken Valvaag <steffenv@cs.uit.no>
+ * Magnus Stenhaug <magnus.stenhaug@uit.no>
+ * Erlend Helland Graff <erlend.h.graff@uit.no>
  */
 
 #include "index.h"
@@ -142,10 +142,10 @@ static list_t *tokenize_query(char *query) {
     return processed;
 }
 
-/* 
+/*
  * Processes and tokenizes the query. Would normally include
  * stemming and stopword removal
- */ 
+ */
 static list_t *preprocess_query(char *query) {
     char *word, *c, *prev;
     list_t *tokens;
@@ -266,7 +266,7 @@ static void parse_html_template(FILE *in, FILE *out, char *query) {
 
     num_tokens = NUM_TAGS;
 
-    while ((read = (int) getline(&line, &len, in)) != -1) {    
+    while ((read = (int) getline(&line, &len, in)) != -1) {
         if ((tok = strstr(line, "<#="))) {
             *tok = 0;
             fprintf(out, "%s", line);
@@ -292,10 +292,10 @@ static void parse_html_template(FILE *in, FILE *out, char *query) {
 
                 if (!found) {
                     *(c-1) = '>';
-                    c = tok - 3; 
+                    c = tok - 3;
                 }
             } else {
-                c = tok - 3; 
+                c = tok - 3;
             }
             fprintf(out, "%s", c);
         } else {
@@ -382,11 +382,11 @@ static void handle_page(FILE *f, char *path, char *query) {
 
         while (!feof(pagef)) {
             n = fread(buf, 1, sizeof(buf), pagef);
-            fwrite(buf, 1, n, f);            
+            fwrite(buf, 1, n, f);
         }
         fclose(pagef);
     }
-	
+
     free(fullpath);
 }
 
@@ -402,7 +402,7 @@ static int http_handler(char *path, map_t *header, map_t *args, FILE *f) {
         pthread_mutex_lock(&query_lock);
         handle_query(f, query);
         pthread_mutex_unlock(&query_lock);
-    } 
+    }
     else if (path[0] == '/') {
         handle_page(f, path+1, query);
     }

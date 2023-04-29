@@ -89,7 +89,7 @@ static int is_operator(qnode_t *node);
 
 /* debugging */
 static qnode_t *assert_term_or(qnode_t *a);
-static void query_printnodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int FORMATTED, int DETAILS);
+static void print_querynodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int FORMATTED, int DETAILS);
 static void print_term(qnode_t *oper, char *op);
 
 /* comparison functions */
@@ -272,6 +272,10 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
         return NULL;
     }
 
+    if (ASSERT_PARSE) {
+        print_querynodes(tokens, leftmost, 1, 1, 0);
+    }
+
     qnode_t *parsed = NULL;
     if (do_parse) {
         parsed = parse_query(leftmost);
@@ -288,10 +292,10 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
         score_query_results(query_result);
     }*/
 
-    // if (parsed) {
-    //     destroy_product(parsed);
-    //     free(parsed);
-    // }
+    if (parsed) {
+        destroy_product(parsed);
+        free(parsed);
+    }
 
     return query_results;
 }
@@ -450,7 +454,7 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
 
     if (errmsg) {
         /* clean up and format the error message  */
-        query_printnodes(NULL, leftmost, 1, 1, 1);
+        print_querynodes(NULL, leftmost, 1, 1, 1);
 
         /* clean up nodes */
         qnode_t *tmp;
@@ -479,30 +483,71 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
     return leftmost;
 }
 
-static qnode_t *parse_query(qnode_t *a) {
-    /* base case: nothing more to parse */
-    if (!a->left && !a->right) {
-        return a;
+static qnode_t *parse_query(qnode_t *node) {
+    if (!node->left && !node->right) {
+        return node;
+    } else if (!node->right) {
+        printf("<<\n");
+        return parse_query(node->left);
     }
-    qnode_t *b = a->right;
-    // qnode_t *c = b->right;
 
-    switch (a->type) {
+    switch (node->type) {
         case L_PAREN:
-            return parse_query(splice_nodes(a, a->r_paren));
-            break;
+            return parse_query(splice_nodes(node, node->r_paren));
         case OP_OR:
-            return term_or(a);
-            break;
+            return term_or(node);
         case OP_AND:
-            return term_and(a);
-            break;
+            return term_and(node);
         case OP_ANDNOT:
-            return term_andnot(a);
-            break;
+            return term_andnot(node);
         default:
-            return parse_query(b);
+            printf(">>\n");
+            return parse_query(node->right);
     }
+}
+
+static qnode_t *term_or(qnode_t *oper) {
+    qnode_t *a = oper->left;
+    qnode_t *c = oper->right;
+    if (oper->right->type != TERM) {
+        return parse_query(c);
+    }
+
+    set_t *l_prod = a->prod;
+    set_t *r_prod = c->prod;
+
+    /* perform various checks to see if an union operation can be circumvented. */
+    if (!l_prod && !r_prod) {
+        oper->prod = NULL;
+    } 
+    else if (!r_prod) {
+        /* inherit the product of the left term */
+        oper->prod = l_prod;
+        oper->free_prod = a->free_prod;
+    } 
+    else if (!l_prod) {
+        /* inherit the product of the right term */
+        oper->prod = r_prod;
+        oper->free_prod = c->free_prod;
+    } 
+    else if (l_prod == r_prod) {
+        /* Duplicate sets from equal <word> leaves, e.g. `a OR a` */
+        oper->prod = l_prod;
+        oper->free_prod = 0;
+    } 
+    else {
+        /* Both products are non-empty sets, and an union operation is nescessary. */
+        oper->prod = set_union(l_prod, r_prod);
+        oper->free_prod = 1; 
+
+        /* free sets that are no longer needed */
+        destroy_product(a);
+        destroy_product(c);
+    }
+
+    /* consume the terms and return self as a term. */
+    oper->type = TERM;
+    return parse_query(splice_nodes(a, c));
 }
 
 static qnode_t *term_andnot(qnode_t *oper) {
@@ -511,52 +556,6 @@ static qnode_t *term_andnot(qnode_t *oper) {
 
 static qnode_t *term_and(qnode_t *oper) {
     return NULL;
-}
-
-static qnode_t *term_or(qnode_t *oper) {
-    if (oper->type == TERM) {
-        return oper;
-    }
-    qnode_t *a = oper->left;
-    qnode_t *c = oper->right;
-    qnode_t *self = c->left;
-
-    set_t *l_prod = a->prod;
-    set_t *r_prod = c->prod;
-
-    /* perform various checks to see if an union operation can be circumvented. */
-    if (!l_prod && !r_prod) {
-        self->prod = NULL;
-    } 
-    else if (!r_prod) {
-        /* inherit the product of the left term */
-        self->prod = l_prod;
-        self->free_prod = a->free_prod;
-    } 
-    else if (!l_prod) {
-        /* inherit the product of the right term */
-        self->prod = r_prod;
-        self->free_prod = c->free_prod;
-    } 
-    else if (l_prod == r_prod) {
-        /* Duplicate sets from equal <word> leaves, e.g. `a OR a` */
-        self->prod = l_prod;
-        self->free_prod = 0;
-    } 
-    else {
-        /* Both products are non-empty sets, and an union operation is nescessary. */
-        self->prod = set_union(l_prod, r_prod);
-        self->free_prod = 1; 
-
-        /* free sets that are no longer needed */
-        destroy_product(a);
-        destroy_product(c);
-    }
-
-
-    /* consume the terms and return self as a term. */
-    self->type = TERM;
-    return splice_nodes(a, c);
 }
 
 /* turn a node into a list of query_result_t. returns an empty list if node==NULL. */
@@ -663,7 +662,7 @@ static int is_operator(qnode_t *node) {
 //     }
 //     if (list_size(tokens) != index->print_once) {
 //         printf("Taking Times for Query:\n");
-//         query_printnodes(tokens, leftmost, 1, 1, 0);
+//         print_querynodes(tokens, leftmost, 1, 1, 0);
 //         printf("     ________Times________\n");
 //         printf(" %11s %14s \n", "Run No.", "Time (μs)");
 //         index->print_once = list_size(tokens);
@@ -757,7 +756,7 @@ static void print_term(qnode_t *oper, char *op) {
     printf(" %s '%s' %s ", oper->left->token, op, oper->right->token);
 }
 
-static void query_printnodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int FORMATTED, int DETAILS) {
+static void print_querynodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int FORMATTED, int DETAILS) {
     qnode_t *n = leftmost;
     if (DETAILS) {
         char *msg;

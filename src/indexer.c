@@ -169,8 +169,6 @@ static list_t *preprocess_query(char *query) {
                 *c = tolower(*c);
             }
 
-            /* Note to self: all tokens will be lowercase */
-
             /* Adjacent words */
             if (prev != NULL && !is_reserved_word(prev)) {
                 list_addlast(processed, strdup("OR"));
@@ -190,9 +188,9 @@ static list_t *preprocess_query(char *query) {
 static void send_results(FILE *f, char *query, list_t *results) {
     char *tmp;
     list_iter_t *it;
-  
+
     tmp = html_escape(query);
-  
+
     fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result(s)</h3>\n", tmp, list_size(results));
     free(tmp);
 

@@ -1,6 +1,14 @@
 /*
- * Index ADT implementation relying mainly on the use of tree-based set(s)
-*/
+ * Index ADT implementation relying mainly on the use of tree-based set(s).
+ * 
+ * In an attempt to improve readability, the code within this file is split into sections.
+ * Sections 1 & 2 consist solely of functions.
+ * 
+ * 0. Forward declarations, typedefs, struct initialization. 
+ * 1. Creating and building the index
+ * 2. Query handling, parsing
+ * 
+ */
 
 #include "index.h"
 #include "common.h"
@@ -13,80 +21,21 @@
 #include <ctype.h>
 #include <string.h>
 
+
 /*
- *  -------- Section 0: Definitions, Structs, Declarations, Comparision Functions --------
+ *  -------- Section 0: Definitions & Declarations --------
 */
 
 #define ERRMSG_MAXLEN  254
 #define ASSERT_PARSE  1
 
-
-/* Type of indexed word */
-typedef struct i_word {
-    char  *word;
-    set_t *paths;          /* set of paths where this word can be found */
-} i_word_t;
-
-/* Type of index */
-typedef struct index {
-    set_t    *i_words;        /* set of all indexed words */
-    i_word_t *iword_buf;       /* i_word for searching / appending purposes */
-    char     *errmsg_buf;     /* buffer to ease customization of error messages */
-    // debugging
-    int        print_once;
-    int        run_number;
-} index_t;
-
-/*
- * Defined query node types (qnode_t->type).
- * Note that 'TERM' is used slightly different than within the specified BNF, and describes a
- * processed node which may be consumed by an operator. E.g. <word> nodes.
- * To allow simple checks, parantheses types are defined < 0, operators > 0.
- */
-typedef enum qnode_types {
-    TERM      =  0,
-    OP_OR     =  1,
-    OP_AND    =  2,
-    OP_ANDNOT =  5,
-    L_PAREN   = -2,
-    R_PAREN   = -1
-} qnode_types_t;
-
-/* type of query product */
-typedef struct qproduct {
-    int     temp; /* track if set is the result of an operation or directly points to a set of word->paths */
-    int    *operations;  /* 'set' of operations performed on this product () */
-    set_t  *paths;
-} qproduct_t;
-
-/*
-    1 = only OR
-    2 = only AND
-    5 = only ANDNOT
-    3 = OR & AND
-    7 = AND & ANDNOT
-    8 = all operations
-*/
-
-struct qnode;
+typedef enum qnode_types qnode_types_t;
+typedef struct iword iword_t;
 typedef struct qnode qnode_t;
+typedef struct qproduct qproduct_t;
+typedef struct qhandler qhandler_t;
 
-/* Type of query node */
-struct qnode {
-    qnode_types_t type;
-    char     *token;
-    set_t    *prod;       /* product of a completed term. will be a set or NULL. */
-    int       free_prod;  /* track if the product points to an indexed set or a gen2 set, e.g. union. */
-    qnode_t  *par;        /* parentheses only. Links respective left/right parentheses */
-    qnode_t  *left;
-    qnode_t  *right;
-    int pos;
-};
-
-
-/* functions that require preemptive declarations */
-
-static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse);
+static qnode_t *identify_tokens(index_t *index, list_t *tokens, int *n_matched_words);
 static qnode_t *parse_query(qnode_t *node);
 static qnode_t *term_andnot(qnode_t *oper);
 static qnode_t *term_and(qnode_t *oper);
@@ -96,20 +45,65 @@ static list_t *get_query_results(qnode_t *node);
 static void destroy_product(qnode_t *term);
 static int is_operator(qnode_t *node);
 
-/* debugging */
 static qnode_t *assert_term_or(qnode_t *a);
-static void print_querynodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int FORMATTED, int DETAILS);
+static void print_query(char *msg, list_t *tokens, qnode_t *leftmost);
 static void print_term(qnode_t *oper, char *op);
 
-/* comparison functions */
 
-/* Wrapper for strcmp, comparing a->word against b->word. */
-int strcmp_i_words(i_word_t *a, i_word_t *b) {
+/* Type of index */
+struct index {
+    set_t    *iwords;         // set of all indexed words
+    iword_t  *iword_buf;      // the index keeps a buffer of one iword for searching and adding words
+    char     *errmsg_buf;
+    // debugging
+    int        print_once;
+    int        run_number;
+};
+
+/* Type of indexed word */
+struct iword {
+    char   *word;
+    set_t  *paths;  // set of paths where word can be found
+};
+
+
+/* The possible types of query node (qnode_t->type) */
+enum qnode_types {
+    TERM      =  0,       // processed(terminated) nodes will have TERM as type
+    OP_OR     =  1,
+    OP_AND    =  2,
+    OP_ANDNOT =  5,
+    L_PAREN   = -2,
+    R_PAREN   = -1
+};
+
+/* Type of query node */
+struct qnode {
+    qnode_types_t type;
+    char     *token;
+    set_t    *prod;        // product of a completed term. will be a set or NULL.
+    int       free_prod;   // track if the product points to an indexed set or a 'temp' set, e.g. union.
+    qnode_t  *par;         // parentheses only. Links respective left/right parentheses 
+    qnode_t  *left;
+    qnode_t  *right;
+    int pos;
+};
+
+/* type of query product */
+struct qproduct {
+    int     temp;           // track if the product points to an indexed set or a 'temp' set, e.g. union.
+    int    *operations;  /* 'set' of operations performed on this product () */
+    set_t  *paths;
+};
+
+
+/* strcmp wrapper */
+int strcmp_iwords(iword_t *a, iword_t *b) {
     return strcmp(a->word, b->word);
 }
 
-/* Compares two i_word_t based by how many files(paths) they appear in */
-int compare_i_words_by_n_occurances(i_word_t *a, i_word_t *b) {
+/* Compares two iword_t based on the size of their path sets */
+int compare_iwords_by_occurance(iword_t *a, iword_t *b) {
     return (set_size(a->paths) - set_size(b->paths));
 }
 
@@ -122,21 +116,20 @@ int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
  *  -------- Section 1: Index Creation, Destruction and Building --------
 */
 
-
 index_t *index_create() {
     index_t *index = malloc(sizeof(index_t));
     if (!index) {
-        ERROR_PRINT("out of memory");
+        ERROR_PRINT("malloc failed");
         return NULL;
     }
 
     /* create the index set with a specialized compare func for the words */
-    index->i_words = set_create((cmpfunc_t)strcmp_i_words);
-    index->iword_buf = malloc(sizeof(i_word_t));
+    index->iwords = set_create((cmpfunc_t)strcmp_iwords);
+    index->iword_buf = malloc(sizeof(iword_t));
     index->errmsg_buf = calloc((ERRMSG_MAXLEN + 1), sizeof(char));
 
-    if (!index->i_words || !index->iword_buf || !index->errmsg_buf) {
-        ERROR_PRINT("out of memory");
+    if (!index->iwords || !index->iword_buf || !index->errmsg_buf) {
+        ERROR_PRINT("malloc failed");
         return NULL;
     }
 
@@ -153,37 +146,38 @@ index_t *index_create() {
 void index_destroy(index_t *index) {
     int n_freed_words = 0;
     int n_freed_paths = 0;
-    set_iter_t *i_word_iter = set_createiter(index->i_words);
-    set_iter_t *path_iter;
+
+    /* Set to group all paths before freeing them. Avoids any hocus pocus 
+     * such as double free or potentially dismembering trees */
     set_t *all_paths = set_create((cmpfunc_t)strcmp);
+    set_iter_t *iword_iter = set_createiter(index->iwords);
 
-    while (set_hasnext(i_word_iter)) {
-        i_word_t *curr = set_next(i_word_iter);
-        path_iter = set_createiter(curr->paths);
+    while (set_hasnext(iword_iter)) {
+        iword_t *curr = set_next(iword_iter);
+        set_iter_t *path_iter = set_createiter(curr->paths);
 
-        /* Add the paths at word to set of all paths to avoid any hocus pocus 
-         * such as double free or dismembering trees */
+        /* add to set of all paths */
         while (set_hasnext(path_iter)) {
             set_add(all_paths, set_next(path_iter));
         }
         set_destroyiter(path_iter);
 
-        /* free the i_word & its members */
+        /* free the iword & its members */
         set_destroy(curr->paths);
         free(curr->word);
         free(curr);
         n_freed_words++;
     }
-    set_destroyiter(i_word_iter);
-    set_destroy(index->i_words);
+    set_destroyiter(iword_iter);
+    set_destroy(index->iwords);
 
     /* free all paths now that they're grouped in one set */
-    path_iter = set_createiter(all_paths);
-    while (set_hasnext(path_iter)) {
-        free(set_next(path_iter));
+    set_iter_t *all_paths_iter = set_createiter(all_paths);
+    while (set_hasnext(all_paths_iter)) {
+        free(set_next(all_paths_iter));
         n_freed_paths++;
     }
-    set_destroyiter(path_iter);
+    set_destroyiter(all_paths_iter);
     set_destroy(all_paths);
 
     /* free index & co */
@@ -204,47 +198,42 @@ void index_addpath(index_t *index, char *path, list_t *words) {
     */
 
     list_iter_t *words_iter = list_createiter(words);
-
     if (words_iter == NULL) {
-        ERROR_PRINT("out of memory");
+        ERROR_PRINT("malloc failed");
         return;
     }
-
     // list_sort(words);
 
-    /* iterate over all words in the provided list */
     while (list_hasnext(words_iter)) {
-        char *s = list_next(words_iter);
+        char *w = list_next(words_iter);
 
-        // if ((prev_word == NULL) || (strcmp(word, prev_word) != 0)) {
+        /* try to add the word to the index, using word_buf to allow comparison */
+        index->iword_buf->word = w;
+        iword_t *iword = set_tryadd(index->iwords, index->iword_buf);
 
-            /* try to add the word to the index, using word_buf as a buffer. */
-            index->iword_buf->word = s;
-            i_word_t *i_word = set_tryadd(index->i_words, index->iword_buf);
-
-            if (i_word == index->iword_buf) {
-                /* first index entry for this word. initialize it as an indexed word. */
-                i_word->word = s;
-                i_word->paths = set_create((cmpfunc_t)strcmp);
-
-                /* Since the search word was added, create a new i_word for searching. */
-                index->iword_buf = malloc(sizeof(i_word_t));
-
-                if (i_word->paths == NULL || index->iword_buf == NULL) {
-                    ERROR_PRINT("out of memory");
-                }
-                index->iword_buf->paths = NULL;
-            } else {
-                /* index is already storing this word. free the string. */
-                free(s);
+        if (iword == index->iword_buf) {
+            /* first index entry for this word. initialize it as an indexed word. */
+            iword->word = w;
+            iword->paths = set_create((cmpfunc_t)strcmp);
+            if (!iword->paths) {
+                ERROR_PRINT("malloc failed");
             }
 
-            /* reset/set the word buffer */
-            // index->iword_buf->word = NULL;
+            /* Since the search word was added, create a new iword for searching. */
+            index->iword_buf = malloc(sizeof(iword_t));
+            if (!index->iword_buf) {
+                ERROR_PRINT("malloc failed");
+            }
+            index->iword_buf->paths = NULL;
+        } else {
+            /* index is already storing this word. free the duplicate string. */
+            free(w);
+        }
 
-            /* add path to the indexed words set */
-            set_add(i_word->paths, path);
+        /* add path to the indexed words set. */
+        set_add(iword->paths, path);
     }
+
     list_destroyiter(words_iter);
 }
 
@@ -253,40 +242,43 @@ void index_addpath(index_t *index, char *path, list_t *words) {
  *  -------- Section 2: Query Parsing & Response --------
 */
 
-
 list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
     if (!list_size(tokens)) {
         *errmsg = "empty query";
         return NULL;
     }
+    if (ASSERT_PARSE) print_query("\n", tokens, NULL);
 
-    int do_parse = 0;   // skip parsing altogether if no words are contained in the index
-    qnode_t *leftmost = format_tokens(index, tokens, &do_parse);
+    int n_matched_words = 0;
+    qnode_t *leftmost = identify_tokens(index, tokens, &n_matched_words);
+
     if (!leftmost) {
-        if (index->errmsg_buf) {
+        if (index->errmsg_buf)
             *errmsg = index->errmsg_buf;
-        } else {
-            *errmsg = "out of memory";
-        }
+        else
+            *errmsg = "index failed to allocate memeory";
         return NULL;
     }
 
-    if (ASSERT_PARSE) {
-        print_querynodes(tokens, leftmost, 1, 0, 0);
-    }
+
+    // if (ASSERT_PARSE) print_query(tokens, leftmost, 1, 0, 0);
 
     qnode_t *parsed = NULL;
-    if (do_parse) {
+    if (n_matched_words) {
+        if (ASSERT_PARSE) print_query("pre parse", NULL, leftmost);
+
         parsed = parse_query(leftmost);
         if (!parsed) {
             *errmsg = "parsing error";
             return NULL;
         }
+    } else if (ASSERT_PARSE) {
+        printf("no word matches. Returning empty list.\n");
     }
 
     list_t *query_results = get_query_results(parsed);
     if (!query_results) {
-        *errmsg = "out of memory";
+        *errmsg = "malloc failed";
     }/* else {
         score_query_results(query_result);
     }*/
@@ -300,12 +292,11 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
 }
 
 /*
- * * Identifies a majority of typical issues regarding query syntax.
- * Converts the tokens to query nodes. <word> tokens are terminated at this stage,
- * and will be assigned a pointer to a set of paths, given that the word is contained within
- * the index. The product of <word> will otherwise be a null-pointer.
+ * Identifies tokens and checks for common grammar errors.
+ * Creates query nodes from the tokens, terminating any <word> nodes.
+ * Removes parantheses if they serve no logical purpose. e.g. (<word>).
  */
-static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
+static qnode_t *identify_tokens(index_t *index, list_t *tokens, int *n_matched_words) {
     list_iter_t *tok_iter = list_createiter(tokens);
     pile_t *paranthesis_pile = pile_create();
     map_t *searched_words = map_create((cmpfunc_t)strcmp, hash_string);
@@ -316,12 +307,12 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
 
     qnode_t *leftmost, *prev, *prev_nonpar, *node, *l_paren;
     char *errmsg, *token;
-    i_word_t *i_word;
+    iword_t *iword;
 
     /* initialize all declared pointers to NULL */
     leftmost = prev = prev_nonpar = node = l_paren = NULL;
     errmsg = token = NULL;
-    i_word = NULL;
+    iword = NULL;
     int i = 0;  // iteration count, to improve msg in case of error
 
     while (!errmsg && list_hasnext(tok_iter)) {
@@ -412,25 +403,21 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
                 } else {
                     /* search index for word, add result to node & map of searched words */
                     index->iword_buf->word = token;
-                    i_word = set_get(index->i_words, index->iword_buf);
+                    iword = set_get(index->iwords, index->iword_buf);
 
-                    /* set product to the i_word paths, or NULL if <word> is not indexed. */
-                    node->prod = (i_word) ? (i_word->paths) : (NULL);
+                    /* set product to the iword paths, or NULL if <word> is not indexed. */
+                    node->prod = (iword) ? (iword->paths) : (NULL);
                     map_put(searched_words, token, node->prod);
                 }
                 /* mark this node to not have its set destroyed, as that would break the index :^) */
                 node->free_prod = 0;
                 prev_nonpar = node;
-                if (node->prod)
-                    *do_parse = 1;
-                // DEBUGGING
-                // if (ASSERT_PARSE) {
-                //     node->token = (node->prod) ? (node->token) : ("X");
-                // }
+
+                if (node->prod) *n_matched_words += 1;
             }
         }
 
-        /* Link node and the previous node, or set as leftmost */
+        /* Link node and the previous node, or set as leftmost for first node */
         if (node) {
             if (leftmost) {
                 prev->right = node;
@@ -443,7 +430,7 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
         }
     }
 
-    /* if errmsg, avoid overwriting it. else, perform final checks. */
+    /* if errmsg is already set, avoid overwriting it. else, perform final checks. */
     if (!errmsg) {
         if (is_operator(prev_nonpar)) {
             errmsg = "Query may not begin or end with an operator";
@@ -454,7 +441,7 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
 
     if (errmsg) {
         /* clean up and format the error message  */
-        print_querynodes(NULL, leftmost, 1, 1, 1);
+        print_query("error", NULL, leftmost);
 
         /* clean up nodes */
         qnode_t *tmp;
@@ -467,13 +454,13 @@ static qnode_t *format_tokens(index_t *index, list_t *tokens, int *do_parse) {
 
         /* print a formatted error message to the designated buffer */
         snprintf(index->errmsg_buf, ERRMSG_MAXLEN, "<br>Error around token %d, <b>'%s'</b> ~ %s.", i, token, errmsg);
-    } else {
-        /* syntax seems ok! pop all/any parantheses pairs expanding the entire width of the query to ease parsing */
+    } /* else {
+        // pop all/any parantheses pairs expanding the entire width of the query
         while (leftmost->par == node) {
             node = node->left;
             leftmost = splice_nodes(leftmost, node->right);
         }
-    }
+    } */
 
     /* cleanup temp structs. leftmost will be NULL in case of an error. */
     list_destroyiter(tok_iter);
@@ -515,31 +502,33 @@ static qnode_t *parse_query(qnode_t *node) {
 static qnode_t *term_or(qnode_t *oper) {
     qnode_t *a = oper->left;
     qnode_t *c = oper->right;
+
+    /* cannot terminate right yet, go deeper. */
     if (oper->right->type != TERM) {
         return parse_query(c);
     }
 
-    set_t *l_prod = a->prod;
-    set_t *r_prod = c->prod;
-
-    /* perform checks to see if an union operation can be circumvented. */
-    if (!l_prod && !r_prod) {
+    /* perform checks to see if an union operation is nescessary. */
+    if (!a->prod && !c->prod) {
         oper->prod = NULL;
-        printf("set operation avoided with (%s && %s): null-sets.\n", a->token, c->token);
-    } else if (!r_prod || (l_prod == r_prod)) {
+        printf("case 0 (%s && %s): null-sets.\n", a->token, c->token);
+    } 
+    else if (!c->prod || (a->prod == c->prod)) {
         /* Combined trigger. either left set is NULL, or sets are duplicate
          * pointers from from equal <word> leaves, e.g. `a OR a` */
-        oper->prod = l_prod;
+        oper->prod = a->prod;
         oper->free_prod = a->free_prod;
-        printf("set operation avoided with '%s': inherited left set:\n", c->token);
-    } else if (!l_prod) {
+        printf("case 1 '%s': inherited left set:\n", c->token);
+    } 
+    else if (!a->prod) {
         /* inherit the product of the right term */
-        oper->prod = r_prod;
+        oper->prod = c->prod;
         oper->free_prod = c->free_prod;
-        printf("set operation avoided with '%s': inherited right set:\n", a->token);
-    } else {
+        printf("case 2 '%s': inherited right set:\n", a->token);
+    } 
+    else {
         /* Both products are non-empty sets, and an union operation is nescessary. */
-        oper->prod = set_union(l_prod, r_prod);
+        oper->prod = set_union(a->prod, c->prod);
         oper->free_prod = 1;
 
         /* free sets that are no longer needed */
@@ -561,15 +550,15 @@ static qnode_t *term_and(qnode_t *oper) {
     return NULL;
 }
 
-/* turn a node into a list of query_result_t. returns an empty list if node==NULL. */
-static list_t *get_query_results(qnode_t *node) {
+/* Returns a list of query results containing each path in a term product. */
+static list_t *get_query_results(qnode_t *term) {
     list_t *query_results = list_create((cmpfunc_t)compare_query_results_by_score);
     if (!query_results) {
         return NULL;
     }
 
-    if (node && (node->prod && set_size(node->prod))) {
-        set_iter_t *path_iter = set_createiter(node->prod);
+    if (term && (term->prod && set_size(term->prod))) {
+        set_iter_t *path_iter = set_createiter(term->prod);
         if (!path_iter) {
             return NULL;
         }
@@ -661,27 +650,6 @@ static int is_operator(qnode_t *node) {
  * ------- Section 3: Testing, Printing, Debugging -------
 */
 
-// static qnode_t *test_preprocessor_time(index_t *index, list_t *tokens, char **errmsg) {
-//     const unsigned long long t_start = gettime();
-//     qnode_t *leftmost = format_tokens(index, tokens, errmsg);
-//     const unsigned long long t_end = (gettime() - t_start);
-//     if (leftmost == NULL) {
-//         return NULL;
-//     }
-//     if (list_size(tokens) != index->print_once) {
-//         printf("Taking Times for Query:\n");
-//         print_querynodes(tokens, leftmost, 1, 1, 0);
-//         printf("     ________Times________\n");
-//         printf(" %11s %14s \n", "Run No.", "Time (μs)");
-//         index->print_once = list_size(tokens);
-//         index->run_number = 0;
-//     }
-//     index->run_number++;
-//     printf("%11d %14llu\n", index->run_number, t_end);
-//     return leftmost;
-// }
-
-/* note: <orterm>  ::=  <term>  |  <term> "OR" <orterm> */
 static qnode_t *assert_term_or(qnode_t *a) {
     qnode_t *self = a->right;
     qnode_t *c = self->right;
@@ -764,65 +732,31 @@ static void print_term(qnode_t *oper, char *op) {
     printf(" %s '%s' %s ", oper->left->token, op, oper->right->token);
 }
 
-static void print_querynodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int FORMATTED, int DETAILS) {
-    qnode_t *n = leftmost;
-    if (DETAILS) {
-        char *msg;
-        printf("%6s   %13s\n", "type", "token");
-        int c = 97;
-        while (n != NULL) {
-            switch (n->type) {
-                case TERM:
-                    printf("%6d   %13c\n", n->type, c);
-                    c = (c == 122) ? (97) : (c+1);
-                    break;
-                case OP_OR:
-                    msg = "OR";
-                    break;
-                case OP_AND:
-                    msg = "AND";
-                    break;
-                case OP_ANDNOT:
-                    msg = "ANDNOT";
-                    break;
-                case L_PAREN:
-                    msg = "(";
-                    break;
-                case R_PAREN:
-                    msg = ")";
-                    break;
-            }
-            if (n->type != TERM) {
-                printf("%6d   %13s\n", n->type, msg);
-            }
-            n = n->right;
-        }
-    }
+static void print_query(char *msg, list_t *tokens, qnode_t *leftmost) {
+    if (msg) printf("%s", msg);
+    printf("[q_");
 
-    if (ORIGINAL && query != NULL) {
-        list_iter_t *tok_iter = list_createiter(query);
-        printf("Original:  `");
+    if (tokens) {
+        list_iter_t *tok_iter = list_createiter(tokens);
+        printf("tokens] = `");
         while (list_hasnext(tok_iter)) {
-            char *tok = list_next(tok_iter);
-            if (isupper(tok[0])) {
-                printf(" %s ", tok);
-            } else {
-                printf("%s", tok);
-            }
+            printf("%s ", (char *)list_next(tok_iter));
+            // (list_hasnext(tok_iter)) ? (printf(" ")) : (printf("`\n"));
         }
-        list_destroyiter(tok_iter);
         printf("`\n");
+        list_destroyiter(tok_iter);
     }
 
-    if (FORMATTED) {
-        n = leftmost;
-        printf("Formatted: `");
-        int c = 97;
-        while (n != NULL) {
+    if (leftmost) {
+        qnode_t *n = leftmost;
+        printf("nodes]: `");
+        // int c = 97;
+        while (n) {
             switch (n->type) {
                 case TERM:
-                    printf("%c", (char)c);
-                    c = (c == 122) ? (97) : (c+1);
+                    // printf("%c", (char)c);
+                    // c = (c == 122) ? (97) : (c+1);
+                    printf("%s", n->token);
                     break;
                 case OP_OR:
                     printf(" OR ");
@@ -852,10 +786,6 @@ static void print_querynodes(list_t *query, qnode_t *leftmost, int ORIGINAL, int
 //         (i == n-1) ? (printf("\n")) : (printf(", "));
 //     }
 // }
-
-/* make clean && make assert_index && lldb assert_index */
-/* make clean && make indexer && ./indexer data/cacm/ */
-/* sudo lsof -i -P | grep LISTEN | grep :$8080 */
 
 /*
 Original:  `(a OR b) OR (c OR (x OR y OR k)) OR (d OR e) OR f`
@@ -896,24 +826,27 @@ d ->  [dORe]  <- e
 
 Original:  `horse OR dog OR x OR banana OR cow OR fish OR cat`
 >>
-set operation avoided with (horse && dog): null-sets.
+case (horse && dog): null-sets.
  < horse >
 >>
-set operation avoided with 'horse': inherited right set:
+case 'horse': inherited right set:
  < x >
 >>
-set operation avoided with 'banana': inherited left set:
+case 'banana': inherited left set:
  < x >
 >>
-set operation avoided with 'cow': inherited left set:
+case 'cow': inherited left set:
  < x >
 >>
-set operation avoided with 'fish': inherited left set:
+case 'fish': inherited left set:
  < x >
 >>
 created union set
 x ->  [xORcat]  <- cat
 ^^^ returning node [xORcat]
 
-
 */
+
+// make clean && make assert_index && lldb assert_index
+// make clean && make indexer && ./indexer data/cacm/
+// sudo lsof -i -P | grep LISTEN | grep :$8080

@@ -226,11 +226,8 @@ int compare_pointers(void *a, void *b) {
 }
 
 int compare_ints(void *a, void *b) {
-    int _a = *(int *)a;
-    int _b = *(int *)b;
-
-    if (_a < _b) return -1;
-    if (_a > _b) return 1;
+    if (*(int *)a < *(int *)b) return -1;
+    if (*(int *)b > *(int *)a) return 1;
     return 0;	
 }
 

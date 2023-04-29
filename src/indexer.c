@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <ctype.h>
-
+#include <assert.h>
 
 #define PORT_NUM 8080
 #define ADDPATH_PRINT_INTERVAL 500
@@ -167,6 +167,7 @@ static list_t *preprocess_query(char *query) {
             /* Convert to lowercase */
             for (c = word; *c; c++) {
                 *c = tolower(*c);
+                // assert(islower(*c));
             }
 
             /* Adjacent words */
@@ -185,13 +186,27 @@ static list_t *preprocess_query(char *query) {
     return processed;
 }
 
-static void send_results(FILE *f, char *query, list_t *results) {
+static void send_results(FILE *f, char *query, list_t *results, unsigned long long *time) {
     char *tmp;
     list_iter_t *it;
 
     tmp = html_escape(query);
 
-    fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result(s)</h3>\n", tmp, list_size(results));
+    const int n_results = list_size(results);
+
+    double ms_time = (float)(*time) / 1000;
+
+    if (!n_results) {
+        fprintf(f, "<hr/><h3>Your query for \"%s\" returned no results</h3>\n", tmp);
+        printf("... in %4.fms\n", ms_time);
+    } else if (ms_time > 1.0) {
+        fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result(s) in %.1fms</h3>\n",
+            tmp, n_results, ms_time);
+    } else {
+        fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result(s) in %.3fms</h3>\n",
+            tmp, n_results, ms_time);
+    }
+
     free(tmp);
 
     fprintf(f, "<ol id=\"results\">\n");
@@ -223,10 +238,12 @@ static void run_query(FILE *f, char *query) {
     if (!list_size(tokens))
         goto end;
 
+    unsigned long long a_time = gettime();
     result = index_query(idx, tokens, &errmsg);
+    unsigned long long b_time = (gettime() - a_time);
 
     if (result != NULL){
-        send_results(f, query, result);
+        send_results(f, query, result, &b_time);
         list_destroy(result);
     } else {
         fprintf(f, "<hr/><h3>Error</h3>\n");

@@ -470,9 +470,9 @@ static qnode_t *parse_query(qnode_t *node) {
         return node;
     }
 
-    // while (node->type == L_PAREN) {
-    //     node = node->right;
-    // }
+    while (node->type == L_PAREN) {
+        node = node->right;
+    }
 
     switch (node->type) {
         case R_PAREN:
@@ -524,6 +524,9 @@ static qnode_t *term_andnot(qnode_t *oper) {
         /* Both products are non-empty sets. Produce the difference. */
         oper->prod = set_difference(a->prod, c->prod);
         oper->free_prod = 1;
+
+        assert(set_size(a->prod) && set_size(c->prod));
+        assert(set_size(oper->prod) <= set_size(a->prod));
 
         /* if the new set is empty, destroy it as well :^( */
         if (!set_size(oper->prod)) {
@@ -665,9 +668,7 @@ static qnode_t *term_or(qnode_t *oper) {
  * There must exist at least one node node inbetween a and z. Returns a->right.
  */
 static qnode_t *splice_nodes(qnode_t *a, qnode_t *z) {
-    if (a->right == z) {
-        ERROR_PRINT("splice_nodes: missing node b\n");
-    }
+    assert(a->right != z);
     qnode_t *b = a->right;
 
     b->left = a->left;
@@ -711,7 +712,8 @@ static list_t *get_query_results(qnode_t *term) {
         return NULL;
     }
 
-    if (term && (term->prod && set_size(term->prod))) {
+    if (term && term->prod) {
+        assert(set_size(term->prod));
         set_iter_t *path_iter = set_createiter(term->prod);
         if (!path_iter) {
             return NULL;

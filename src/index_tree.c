@@ -6,13 +6,13 @@
 
 #include "index.h"
 #include "common.h"
-#include "printing.h"
 #include "queryparser.h"
 #include "set.h"
-#include "assert.h"
 #include "map.h"
-#include "pile.h"
+// #include "assert.h"
+// #include "printing.h"
 
+#include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
 #include <math.h>
@@ -129,8 +129,8 @@ index_t *index_create() {
 }
 
 void index_destroy(index_t *index) {
-    int n_freed_words = 0;
-    int n_freed_docs = 0;
+    // int n_freed_words = 0;
+    // int n_freed_docs = 0;
 
     /* Documents are shared within sets of indexed words, 
      * so put them in a set priort to freeing to avoid any hocus pocus
@@ -140,7 +140,8 @@ void index_destroy(index_t *index) {
     set_iter_t *iword_iter = set_createiter(index->iwords);
 
     if (!all_docs || !iword_iter) {
-        ERROR_PRINT("failed to allocate memory\n");
+        // ERROR_PRINT("failed to allocate memory\n");
+        return;
     }
 
     /* free the set of indexed words while creating a joint set of documents. */
@@ -148,7 +149,8 @@ void index_destroy(index_t *index) {
         iword_t *curr = set_next(iword_iter);
         set_iter_t *doc_iter = set_createiter(curr->idocs);
         if (!doc_iter) {
-            ERROR_PRINT("failed to allocate memory\n");
+            // ERROR_PRINT("failed to allocate memory\n");
+            return;
         }
 
         /* add to set of all docs */
@@ -161,14 +163,15 @@ void index_destroy(index_t *index) {
         set_destroy(curr->idocs);
         free(curr->word);
         free(curr);
-        n_freed_words++;
+        // n_freed_words++;
     }
     set_destroyiter(iword_iter);
     set_destroy(index->iwords);
 
     set_iter_t *all_docs_iter = set_createiter(all_docs);
     if (!all_docs_iter) {
-        ERROR_PRINT("failed to allocate memory\n");
+        // ERROR_PRINT("failed to allocate memory\n");
+        return;
     }
 
     /* free the set of all documents */
@@ -178,7 +181,7 @@ void index_destroy(index_t *index) {
         map_destroy(doc->terms, NULL, free);
         free(doc->path);
         free(doc);
-        n_freed_docs++;
+        // n_freed_docs++;
     }
     set_destroyiter(all_docs_iter);
     set_destroy(all_docs);
@@ -188,8 +191,8 @@ void index_destroy(index_t *index) {
     free(index->iword_buf);
     free(index);
 
-    DEBUG_PRINT("index_destroy: Freed %d documents, %d words\n", 
-        n_freed_docs, n_freed_words);
+    // DEBUG_PRINT("index_destroy: Freed %d documents, %d words\n", 
+    //     n_freed_docs, n_freed_words);
 }
 
 void index_addpath(index_t *index, char *path, list_t *tokens) {
@@ -200,19 +203,21 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
     */
 
     if (list_size(tokens) == 0) {
-        DEBUG_PRINT("given path with no tokens: %s\n", path);
+        // DEBUG_PRINT("given path with no tokens: %s\n", path);
         return;
     }
 
     list_iter_t *tok_iter = list_createiter(tokens);
     idocument_t *doc = malloc(sizeof(idocument_t));
     if (!doc || !tok_iter) {
-        ERROR_PRINT("malloc failed\n");
+        // ERROR_PRINT("malloc failed\n");
+        return;
     }
 
     doc->terms = map_create((cmpfunc_t)strcmp, hash_string);
     if (!doc->terms) {
-        ERROR_PRINT("malloc failed\n");
+        // ERROR_PRINT("malloc failed\n");
+        return;
     }
 
     index->n_docs++;
@@ -230,13 +235,15 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
             iword->word = tok;
             iword->idocs = set_create((cmpfunc_t)compare_idocs_by_path);
             if (!iword->idocs) {
-                ERROR_PRINT("malloc failed\n");
+                // ERROR_PRINT("malloc failed\n");
+                return;
             }
 
             /* Since the search word was added, create a new iword for searching. */
             index->iword_buf = malloc(sizeof(iword_t));
             if (!index->iword_buf) {
-                ERROR_PRINT("malloc failed\n");
+                // ERROR_PRINT("malloc failed\n");
+                return;
             }
             index->iword_buf->idocs = NULL;
         } else {
@@ -249,7 +256,8 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
         if (!term) {
             term = malloc(sizeof(idocument_term_t));
             if (!term) {
-                ERROR_PRINT("malloc failed\n");
+                // ERROR_PRINT("malloc failed\n");
+                return;
             }
             term->freq = 1;
             term->iword = iword;

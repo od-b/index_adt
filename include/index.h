@@ -31,7 +31,7 @@ void index_destroy(index_t *index);
  * NOTE: It is the responsibility of index_addpath() to deallocate (free)
  *       'path' and the contents of the 'words' list.
  */
-void index_addpath(index_t *index, char *path, list_t *words);
+void index_addpath(index_t *index, char *path, list_t *tokens);
 
 /*
  * Performs the given query on the given index.  If the query
@@ -40,7 +40,7 @@ void index_addpath(index_t *index, char *path, list_t *words);
  * message is assigned to the given errmsg pointer and the return value
  * will be NULL.
  */
-list_t *index_query(index_t *index, list_t *query, char **errmsg);
+list_t *index_query(index_t *index, list_t *tokens, char **errmsg);
 
 #endif
 

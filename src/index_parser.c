@@ -1,3 +1,13 @@
+/*
+ * Implementation of a token scanner & parser for a given index.
+ *
+ * The parser supports OR, AND, ANDNOT operations, 
+ * and allows specifying the desired order of evaluation through parantheses.
+ * 
+ * In the event of chained operator/term sequences without parantheses,
+ * the parser defaults to a evaluation order of OR -> AND -> ANDNOT
+*/
+
 #include "parser.h"
 #include "pile.h"
 #include "map.h"
@@ -17,13 +27,17 @@ typedef enum qnode_types qnode_types_t;
 typedef struct qnode qnode_t;
 typedef struct parser parser_t;
 
+
+/* declarations of static functions to allow reference prior to initialization. */
+
 static qnode_t *parse_node(qnode_t *node);
 static qnode_t *term_andnot(qnode_t *oper);
 static qnode_t *term_and(qnode_t *oper);
 static qnode_t *term_or(qnode_t *oper);
 static qnode_t *splice_nodes(qnode_t *a, qnode_t *z);
-static void destroy_product(qnode_t *term);
 static int is_operator(qnode_t *node);
+static void destroy_product(qnode_t *term);
+static void destroy_querynodes(qnode_t *leftmost);
 
 static void debug_print_query(char *msg, list_t *tokens, qnode_t *leftmost);
 static void debug_print_cattokens(qnode_t *oper);
@@ -57,6 +71,7 @@ struct qnode {
     char     *token;
 };
 
+
 parser_t *parser_create(void *parent, search_func_t search_func) {
     parser_t *parser = malloc(sizeof(parser_t));
     if (!parser) {
@@ -78,14 +93,6 @@ parser_t *parser_create(void *parent, search_func_t search_func) {
     return parser;
 }
 
-static void destroy_querynodes(qnode_t *leftmost) {
-    while (leftmost) {
-        qnode_t *tmp = leftmost;
-        leftmost = leftmost->right;
-        destroy_product(tmp);
-        free(tmp);
-    }
-}
 
 void parser_destroy(parser_t *parser) {
     free(parser->errmsg_buf);
@@ -104,22 +111,6 @@ set_t *parser_get_result(parser_t *parser) {
 
     parser->leftmost = parse_node(parser->leftmost);
 
-    if (!parser->leftmost) {
-        strcpy(parser->errmsg_buf, "parsing error\0");
-        return NULL;
-    } 
-
-    if (parser->leftmost->left || parser->leftmost->right) {
-        /* Safeguard/assertion, if parse_node fails to reduce nodes to a single term */
-        while (parser->leftmost->left) {
-            parser->leftmost = parser->leftmost->left;
-        }
-        destroy_querynodes(parser->leftmost);
-        strcpy(parser->errmsg_buf, "parse_node failed to reduce nodes to a single term\0");
-        parser->leftmost = NULL;
-        return NULL;
-    }
-    
     if (!parser->leftmost->prod) {
         /* query completed with no results. return an empty set. */
         free(parser->leftmost);
@@ -138,10 +129,12 @@ set_t *parser_get_result(parser_t *parser) {
 
 parser_status_t parser_scan_tokens(parser_t *parser, list_t *tokens) {
     /* 
-     * This function is somewhat cursed, with a lot of variables at play.
+     * This function is fairly chaotic, with a lot of variables at play.
      * In an attempt to at least make it continuous, there's a single
      * shared exit point, regardless of status.
     */
+    unsigned long long t_start = gettime();
+    
 
     list_iter_t *tok_iter = NULL;
     pile_t *parenthesis_pile = NULL;
@@ -193,14 +186,12 @@ parser_status_t parser_scan_tokens(parser_t *parser, list_t *tokens) {
             node->type = R_PAREN;
             l_paren = pile_pop(parenthesis_pile);
 
-            if (!prev_nonpar || is_operator(prev_nonpar)) {
-                errmsg = "Invalid closing paranthesis";
-            } else if (!prev || !l_paren) {
-                errmsg = "Unmatched closing paranthesis";
-            } else if (prev == l_paren) {
-                errmsg = "Parantheses must contain a query";
+            if (!l_paren || !prev || !prev_nonpar) {
+                errmsg = "Invalid closing parenthesis";
+            } else if (prev == l_paren || is_operator(prev_nonpar)) {
+                errmsg = "Parentheses must enclose a valid query";
             } else if (l_paren->right == prev) {
-                /* the parantheses only wrap a single <word>. remove them. */
+                /* the parentheses only wrap a single <word>. remove them. */
                 if (l_paren == leftmost) {
                     leftmost = prev;
                 } else {
@@ -211,7 +202,7 @@ parser_status_t parser_scan_tokens(parser_t *parser, list_t *tokens) {
                 free(l_paren);
                 node = NULL;  // defensive measure
             } else {
-                /* link the parantheses */
+                /* link the parentheses */
                 l_paren->sibling = node;
                 node->sibling = l_paren;
             }
@@ -249,12 +240,10 @@ parser_status_t parser_scan_tokens(parser_t *parser, list_t *tokens) {
         if (node) {
             /* operator specific checks */
             if (is_operator(node)) {
-                if (!prev || !prev_nonpar) {
+                if (!prev || !prev_nonpar || prev->type == L_PAREN) {
                     errmsg = "Operators require adjacent terms";
-                } else if (prev_nonpar->type != TERM) {
-                    errmsg = "Adjacent operators.";
-                } else if (prev->type == L_PAREN) {
-                    errmsg = "Operators may not occur directly after an opening paranthesis";
+                } else if (is_operator(prev_nonpar)) {
+                    errmsg = "Adjacent operators";
                 }
                 prev_nonpar = node;
             }
@@ -274,9 +263,9 @@ parser_status_t parser_scan_tokens(parser_t *parser, list_t *tokens) {
     /* if errmsg is already set, avoid overwriting it. else, perform final checks. */
     if (!errmsg) {
         if (is_operator(prev_nonpar)) {
-            errmsg = "Query may not begin or end with an operator";
+            errmsg = "Operators require adjacent terms";
         } else if (pile_size(parenthesis_pile)) {
-            errmsg = "Unmatched paranthesis";
+            errmsg = "Parenthesis has no left match";
         }
     }
 
@@ -293,6 +282,7 @@ parser_status_t parser_scan_tokens(parser_t *parser, list_t *tokens) {
         /* valid syntax */
         parser->leftmost = leftmost;
         printf("\n");
+        printf("[parser_scan_tokens]: scan of %d tokens completed in %.5fms\n", i, ((float)(gettime()-t_start)) / 1000);
         debug_print_query("[query_validated]\n", tokens, leftmost);
         printf("\n");
     }
@@ -311,17 +301,14 @@ end:
 }
 
 /*
- * Given a query node, decides the next action.
+ * Given a query node, decides the next action until the query is reduced
+ * to a single terminated node, which will be the point of return.
  */
 static qnode_t *parse_node(qnode_t *node) {
-    /* Error guard */
-    if (!node) {
-        return NULL;
-    }
-
-    /* The following loop may be ommited, but greatly reduces recursion depth
+    /* 
+     * The following loop may be ommited, but greatly reduces recursion depth
      * for nested queries by skipping to the next operator || rparen
-    */
+     */
     while (node->right && (node->type == L_PAREN || node->type == TERM)) {
         node = node->right;
     }
@@ -329,7 +316,7 @@ static qnode_t *parse_node(qnode_t *node) {
     switch (node->type) {
         case R_PAREN:
             printf("<<< goto l_paren\n");
-            /* end of query/subquery. pop parantheses and go to lparen->right */
+            /* End of query/subquery. Splice parantheses and shift to lparen->right */
             return parse_node(splice_nodes(node->sibling, node));
         case OP_OR:
             return term_or(node);
@@ -345,7 +332,7 @@ static qnode_t *parse_node(qnode_t *node) {
                 printf("<<\n");
                 return parse_node(node->left);
             } else {
-                /* Base case. No more nodes to evaluate */
+                /* Single node remaining, containing the final product. Return it. */
                 printf("^^ returning node: %s\n", node->token);
                 return node;
             }
@@ -476,20 +463,18 @@ static qnode_t *term_or(qnode_t *oper) {
         printf("case 0 (%s && %s): null-sets. ", a->token, c->token);
     }
     else if (!c->prod || (a->prod == c->prod)) {
-        /* Combined trigger. either left set is NULL, or sets are duplicate
-         * pointers from from equal <word> leaves, e.g. `a OR a` */
-        if (!c->prod) assert(set_size(a->prod) == set_size(c->prod));
+        /* Not C --> inherit A. 
+         * If duplicate <word>'s, union is pointless --> inherit A */
         oper->prod = a->prod;
         oper->free_prod = a->free_prod;
         printf("case 1 '%s': inherited left set: ", c->token);
     }
     else if (!a->prod) {
-        /* Inherit the product of the right term */
+        /* Not A --> inherit C */
         oper->prod = c->prod;
         oper->free_prod = c->free_prod;
         printf("case 2 '%s': inherited right set: ", a->token);
-    }
-    else {
+    } else {
         /* Both products are non-empty sets, and an union operation is nescessary. */
         oper->prod = set_union(a->prod, c->prod);
         oper->free_prod = 1;
@@ -537,6 +522,21 @@ static qnode_t *splice_nodes(qnode_t *a, qnode_t *z) {
     free(z);
 
     return b;
+}
+
+/* 
+ * Destroys the given node and all nodes to the right of it.
+ * Used to clean up in the event of syntax errors, etc.
+ * If the parsing completes without error, this does not have to be called,
+ * as the parsing process cleans up nodes as it reduces terms.
+ */
+static void destroy_querynodes(qnode_t *leftmost) {
+    while (leftmost) {
+        qnode_t *tmp = leftmost;
+        leftmost = leftmost->right;
+        destroy_product(tmp);
+        free(tmp);
+    }
 }
 
 /*

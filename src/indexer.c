@@ -198,13 +198,10 @@ static void send_results(FILE *f, char *query, list_t *results, unsigned long lo
 
     if (!n_results) {
         fprintf(f, "<hr/><h3>Your query for \"%s\" returned no results</h3>\n", tmp);
-        printf("... in %4.fms\n", ms_time);
-    } else if (ms_time > 10.0) {
-        fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result(s) in %.1fms</h3>\n",
-            tmp, n_results, ms_time);
+        printf("... in %.6fms\n", ms_time);
     } else {
-        fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result(s) in %.3fms</h3>\n",
-            tmp, n_results, ms_time);
+        fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result%s in %.3fms</h3>\n",
+            tmp, n_results, ((n_results > 1) ? ("s") : ("")), ms_time);
     }
 
     free(tmp);

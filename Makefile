@@ -8,8 +8,8 @@ LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
 SET_SRC=aatreeset.c
 INDEX_SRC=index_tree.c
-# PARSER_SRC=queryparser.c pile.c
-PARSER_SRC=assertive_queryparser.c pile.c
+PARSER_SRC=queryparser.c pile.c
+# PARSER_SRC=assertive_queryparser.c pile.c
 
 # Directories
 INCLUDE_DIR=include
@@ -31,8 +31,8 @@ ASSERT_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(ASSERT_SRC))
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
 
-FLAGS = -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
-# FLAGS = -O2 -g
+# FLAGS = -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
+FLAGS = -O2 -g
 
 .PHONY=all
 

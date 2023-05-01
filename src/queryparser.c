@@ -106,6 +106,7 @@ set_t *parser_get_result(parser_t *parser) {
 }
 
 parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
+    /* declare and initialize all pointers */
     qnode_t *leftmost, *prev, *prev_nonpar, *node;
     leftmost = prev = prev_nonpar = node = NULL;
 
@@ -115,6 +116,7 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
     map_t *searched_words = NULL;
     parser_status_t status = SKIP_PARSE;
 
+    /* create temporary constructs */
     tok_iter = list_createiter(tokens);
     paren_pile = pile_create();
     tok_pile = pile_create();

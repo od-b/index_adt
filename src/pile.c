@@ -75,10 +75,9 @@ void *pile_peek(pile_t *pile, int depth) {
     }
 
     plate_t *p = pile->top;
-
     for (int i = 0; (i < depth && p->next != NULL); p = p->next, i++);
 
-    return p;
+    return p->elem;
 }
 
 int pile_size(pile_t *pile) {

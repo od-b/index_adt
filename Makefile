@@ -8,7 +8,7 @@ LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
 SET_SRC=aatreeset.c
 INDEX_SRC=index_tree.c
-PARSER_SRC=index_parser.c pile.c
+PARSER_SRC=queryparser.c pile.c
 
 # Directories
 INCLUDE_DIR=include

@@ -1,12 +1,10 @@
-#ifndef PARSER_H
-#define PARSER_H
+#ifndef QUERYPARSER_H
+#define QUERYPARSER_H
 
 #include "list.h"
 #include "set.h"
 
-/* 
- * Enumerated response codes
- */
+/* Enumerated response codes */
 typedef enum parser_status {
     SKIP_PARSE,
     PARSE_READY,
@@ -14,14 +12,14 @@ typedef enum parser_status {
     SYNTAX_ERROR,
 } parser_status_t;
 
-struct parser;
 
+struct parser;
 /* Type of query parser */
 typedef struct parser parser_t;
 
-/* 
- * Type of search func. References a function which
- * takes in a void and char pointer, and returns a set.
+/*
+ * Type of search_func, function pointer/reference.
+ * Such a func takes in a void and char pointer, and returns a set.
  */
 typedef set_t *(*search_func_t)(void *, char *);
 
@@ -39,10 +37,10 @@ parser_t *parser_create(void *parent, search_func_t search_func);
 void parser_destroy(parser_t *parser);
 
 /*
- * Identifies tokens and checks for grammar errors. 
- * Returns a status code of type parser_status_t.
+ * Scans / Identifies tokens and checks for grammar errors. 
+ * Returns a status code parser_status_t.
  */
-parser_status_t parser_scan_tokens(parser_t *parser, list_t *tokens);
+parser_status_t parser_scan(parser_t *parser, list_t *tokens);
 
 /*
  * Returns the current error message of the parser

@@ -1,14 +1,8 @@
 /*
- * Implementation of a token scanner & parser for a given index.
- *
- * The parser supports OR, AND, ANDNOT operations, 
- * and allows specifying the desired order of evaluation through parantheses.
- * 
- * In the event of chained operator/term sequences without parantheses,
- * the parser defaults to a evaluation order of OR -> AND -> ANDNOT
-*/
+ * See ./..README_queryparser.md 
+ */
 
-#include "parser.h"
+#include "queryparser.h"
 #include "pile.h"
 #include "map.h"
 #include "printing.h"
@@ -127,41 +121,53 @@ set_t *parser_get_result(parser_t *parser) {
     return result;
 }
 
-parser_status_t parser_scan_tokens(parser_t *parser, list_t *tokens) {
-    /* 
-     * This function is fairly chaotic, with a lot of variables at play.
-     * In an attempt to at least make it continuous, there's a single
-     * shared exit point, regardless of status.
-    */
+parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
+    /* this function is more nested than i would like, but has a rather simple goal:
+     * Validate the syntax of tokens while 'converting' them into query nodes.
+     * Terminate <words>, to detect if a search may yield results without further parsing.
+     *
+     * EXPERIMENT:
+     * For <word> nodes, terminate the nodes - while keeping track of 
+     * words that were already searched for, so e.g. all <words> are duplicates,
+     * there will only be one search. 
+     * 
+     * This is not ideal for small queries, but given a very large query, 
+     * there may be numerous duplicates - could the approach be useful as a whole?
+     * What's the likelyhood of queries containing the same token more than once?
+     * (hard to say without unbiased user data, which is unattainable)
+     * 
+     * TEST: 
+     *  * Does it improve search efficiency for queries with duplicates?
+     *  * Given no duplicates, what's the time cost of checking the map?
+     *  * 
+     * HYPOTHESIS:
+     *  * Will be considerably faster if as much as one duplicate is found.
+     *  * how much faster will scale with index size, and n. query tokens
+     */
+    /* Declare & initialize all function-scope pointers */
     unsigned long long t_start = gettime();
-    
 
+    qnode_t *leftmost, *prev, *prev_nonpar, *node;
+    leftmost = prev = prev_nonpar = node = NULL;
+
+    char *errmsg = NULL, *token = NULL;
+    pile_t *paren_pile = NULL, *tok_pile = NULL;
     list_iter_t *tok_iter = NULL;
-    pile_t *parenthesis_pile = NULL;
     map_t *searched_words = NULL;
     parser_status_t status = SKIP_PARSE;
 
     tok_iter = list_createiter(tokens);
-    parenthesis_pile = pile_create();
+    paren_pile = pile_create();
+    tok_pile = pile_create();
     searched_words = map_create((cmpfunc_t)strcmp, hash_string);
 
-    if (!searched_words || !parenthesis_pile || !searched_words) {
+    if (!searched_words || !paren_pile || !searched_words) {
         status = ALLOC_FAILED;
         goto end;
     }
 
-    qnode_t *leftmost, *prev, *prev_nonpar, *node, *l_paren;
-    char *errmsg, *token;
-
-    /* initialize all declared pointers */
-    leftmost = prev = prev_nonpar = node = l_paren = NULL;
-    errmsg = token = NULL;
-
-    const int n_tokens = list_size(tokens);
-    int i = 0;
-
     /* loop until an error message is set, or there are no more tokens */
-    while (!errmsg && (i++ < n_tokens)) {
+    while (!errmsg && list_hasnext(tok_iter)) {
         node = malloc(sizeof(qnode_t));
         if (!node) {
             status = ALLOC_FAILED;
@@ -169,7 +175,7 @@ parser_status_t parser_scan_tokens(parser_t *parser, list_t *tokens) {
         }
         token = list_next(tok_iter);
 
-        /* initialize the node using default values */
+        /* initialize the node */
         node->prod = NULL;
         node->right = NULL;
         node->sibling = NULL;
@@ -181,30 +187,33 @@ parser_status_t parser_scan_tokens(parser_t *parser, list_t *tokens) {
         /* match node type based on the token. */
         if (token[0] == '(') {
             node->type = L_PAREN;
-            pile_push(parenthesis_pile, node);
+            pile_push(paren_pile, node);
         } else if (token[0] == ')') {
             node->type = R_PAREN;
-            l_paren = pile_pop(parenthesis_pile);
 
-            if (!l_paren || !prev || !prev_nonpar) {
-                errmsg = "Invalid closing parenthesis";
-            } else if (prev == l_paren || is_operator(prev_nonpar)) {
+            /* set the most recent parenthesis as sibling */
+            node->sibling = pile_pop(paren_pile);
+
+            /* validate parentheses */
+            if (!node->sibling || !prev || !prev_nonpar) {
+                errmsg = "Missing opening parenthesis";
+            } else if (prev == node->sibling || is_operator(prev_nonpar)) {
                 errmsg = "Parentheses must enclose a valid query";
-            } else if (l_paren->right == prev) {
+            } else if (node->sibling->right == prev) {
                 /* the parentheses only wrap a single <word>. remove them. */
-                if (l_paren == leftmost) {
+
+                if (node->sibling == leftmost) {
                     leftmost = prev;
                 } else {
-                    l_paren->left->right = prev;
+                    node->sibling->left->right = prev;
                 }
-                prev->left = l_paren->left;
+                prev->left = node->sibling->left;
                 free(node);
-                free(l_paren);
+                free(node->sibling);
                 node = NULL;  // defensive measure
             } else {
-                /* link the parentheses */
-                l_paren->sibling = node;
-                node->sibling = l_paren;
+                /* link the other parentheses */
+                node->sibling->sibling = node;
             }
         } else if (strcmp(token, "OR") == 0) {
             node->type = OP_OR;
@@ -258,40 +267,57 @@ parser_status_t parser_scan_tokens(parser_t *parser, list_t *tokens) {
             }
             prev = node;
         }
+        pile_push(tok_pile, token);
     }
 
     /* if errmsg is already set, avoid overwriting it. else, perform final checks. */
     if (!errmsg) {
         if (is_operator(prev_nonpar)) {
             errmsg = "Operators require adjacent terms";
-        } else if (pile_size(parenthesis_pile)) {
-            errmsg = "Parenthesis has no left match";
+        } else if (pile_size(paren_pile)) {
+            errmsg = "Missing closing parenthesis";
         }
     }
 
     /* in the event of a syntax error */
     if (errmsg) {
-        /* clean up and format the error message  */
+        /* format the error message  */
         printf("\n");
         debug_print_query("[error]: ", NULL, leftmost);
 
         /* print a formatted error message to the designated buffer */
-        snprintf(parser->errmsg_buf, ERRMSG_MAXLEN, "<br>Error around token %d, <b>'%s'</b> ~ %s.", i, token, errmsg);
+        if (pile_size(tok_pile) > 3) {
+            if (list_hasnext(tok_iter)) {
+                snprintf(parser->errmsg_buf, ERRMSG_MAXLEN, "<br>Error at sequence '... %s %s %s%s' ~ %s.",
+                    (char *)pile_peek(tok_pile, 1), token, (char *)list_next(tok_iter), 
+                    (list_hasnext(tok_iter) ? (" ...") : ("")), errmsg);
+            } else {
+                snprintf(parser->errmsg_buf, ERRMSG_MAXLEN, "<br>Error at sequence '... %s %s %s' ~ %s.",
+                    (char *)pile_peek(tok_pile, 2), (char *)pile_peek(tok_pile, 1), token, errmsg);
+            }
+        } else {
+            snprintf(parser->errmsg_buf, ERRMSG_MAXLEN, "<br>Error around token %d, '%s' ~ %s.",
+                pile_size(tok_pile), token, errmsg); 
+        }
         status = SYNTAX_ERROR;
     } else {
         /* valid syntax */
         parser->leftmost = leftmost;
         printf("\n");
-        printf("[parser_scan_tokens]: scan of %d tokens completed in %.5fms\n", i, ((float)(gettime()-t_start)) / 1000);
+        printf("[parser_scan]: scan of %d tokens completed in %.5fms\n",
+            pile_size(tok_pile), ((float)(gettime()-t_start) / 1000));
         debug_print_query("[query_validated]\n", tokens, leftmost);
         printf("\n");
     }
 
 end:
+    /* cleanup */
     if (tok_iter) 
         list_destroyiter(tok_iter);
-    if (parenthesis_pile)
-        pile_destroy(parenthesis_pile);
+    if (paren_pile)
+        pile_destroy(paren_pile);
+    if (tok_pile)
+        pile_destroy(tok_pile);
     if (searched_words) 
         map_destroy(searched_words, NULL, NULL);
     if (status != PARSE_READY)
@@ -316,7 +342,7 @@ static qnode_t *parse_node(qnode_t *node) {
     switch (node->type) {
         case R_PAREN:
             printf("<<< goto l_paren\n");
-            /* End of query/subquery. Splice parantheses and shift to lparen->right */
+            /* End of query/subquery. Splice parentheses and shift to lparen->right */
             return parse_node(splice_nodes(node->sibling, node));
         case OP_OR:
             return term_or(node);
@@ -573,7 +599,7 @@ static void debug_print_cattokens(qnode_t *oper) {
         b->token = concatenate_strings(5, "[", a->token, b->token, c->token, "]");
         switch (a->right->type) {
             case OP_OR:
-                printf("%s U-->  %s  <--U %s\n", a->token, b->token, c->token);
+                printf("%s U-->  %s ∪∩ <--U %s\n", a->token, b->token, c->token);
                 break;
             case OP_AND:
                 printf("%s &-->  %s  <--& %s\n", a->token, b->token, c->token);

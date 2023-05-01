@@ -17,7 +17,7 @@
 #include "index.h"
 #include "common.h"
 #include "printing.h"
-#include "parser.h"
+#include "queryparser.h"
 #include "set.h"
 #include "assert.h"
 #include "map.h"
@@ -344,7 +344,7 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
         return NULL;
     }
 
-    switch (parser_scan_tokens(index->parser, tokens)) {
+    switch (parser_scan(index->parser, tokens)) {
         case (ALLOC_FAILED):
             *errmsg = "index failed to allocate more memeory";
             return NULL;

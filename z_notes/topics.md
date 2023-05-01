@@ -93,6 +93,14 @@
 
 
 # References
+* english words module for python testing 
+  1. module: <https://pypi.org/project/english-words/>
+  2. word set: <https://svnweb.freebsd.org/base/head/share/dict/web2?view=markup&pathrev=326913>
+
+* data set:
+  * english wikipedia dump, wikipedia--html.3.7z, 01-Jan-2007, ≈ 1gb zipped, 20gb unzipped. 1612220 files.
+    <https://dumps.wikimedia.org/other/static_html_dumps/December_2006/en/>
+
 * rosen - set theory
 * draw.io - resource
 * OBLIG 1: Report, tree

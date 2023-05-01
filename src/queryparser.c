@@ -1,5 +1,5 @@
 /*
- * See ./..README_queryparser.md 
+ * See .. README_queryparser.md 
  */
 
 #include "queryparser.h"
@@ -196,12 +196,11 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
 
             /* validate parentheses */
             if (!node->sibling || !prev || !prev_nonpar) {
-                errmsg = "Missing opening parenthesis";
+                errmsg = "Unexpected closing parenthesis";
             } else if (prev == node->sibling || is_operator(prev_nonpar)) {
-                errmsg = "Parentheses must enclose a valid query";
+                errmsg = "Expected a query within parentheses";
             } else if (node->sibling->right == prev) {
                 /* the parentheses only wrap a single <word>. remove them. */
-
                 if (node->sibling == leftmost) {
                     leftmost = prev;
                 } else {
@@ -225,7 +224,7 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
             /* token is a <word> */
             node->type = TERM;
             if (prev_nonpar && (prev_nonpar->type == TERM)) {
-                errmsg = "Adjacent words";
+                errmsg = "Adjacent terms";
             } else {
                 if (map_haskey(searched_words, token)) {
                     /* Duplicate <word> within this query.
@@ -249,10 +248,10 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
         if (node) {
             /* operator specific checks */
             if (is_operator(node)) {
-                if (!prev || !prev_nonpar || prev->type == L_PAREN) {
-                    errmsg = "Operators require adjacent terms";
-                } else if (is_operator(prev_nonpar)) {
-                    errmsg = "Adjacent operators";
+                if (!prev || !prev_nonpar) {
+                    errmsg = "Expected operator to have adjacent term(s)";
+                } else if (is_operator(prev_nonpar) || prev->type == L_PAREN) {
+                    errmsg = "Unexpected operator";
                 }
                 prev_nonpar = node;
             }
@@ -273,9 +272,9 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
     /* if errmsg is already set, avoid overwriting it. else, perform final checks. */
     if (!errmsg) {
         if (is_operator(prev_nonpar)) {
-            errmsg = "Operators require adjacent terms";
+            errmsg = "Expected a term or query following operator";
         } else if (pile_size(paren_pile)) {
-            errmsg = "Missing closing parenthesis";
+            errmsg = "Expected a closing parenthesis";
         }
     }
 
@@ -285,18 +284,17 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
         printf("\n");
         debug_print_query("[error]: ", NULL, leftmost);
 
-        /* print a formatted error message to the designated buffer */
-        if (pile_size(tok_pile) > 3) {
-            if (list_hasnext(tok_iter)) {
-                snprintf(parser->errmsg_buf, ERRMSG_MAXLEN, "<br>Error at sequence '... %s %s %s%s' ~ %s.",
-                    (char *)pile_peek(tok_pile, 1), token, (char *)list_next(tok_iter), 
-                    (list_hasnext(tok_iter) ? (" ...") : ("")), errmsg);
-            } else {
-                snprintf(parser->errmsg_buf, ERRMSG_MAXLEN, "<br>Error at sequence '... %s %s %s' ~ %s.",
-                    (char *)pile_peek(tok_pile, 2), (char *)pile_peek(tok_pile, 1), token, errmsg);
-            }
+        /* print a formatted error message to the parsers errmsg buffer */
+        if ((pile_size(tok_pile) > 2) && list_hasnext(tok_iter)) {
+            snprintf(parser->errmsg_buf, ERRMSG_MAXLEN,
+                "<br>Error around %s%s %s %s%s ~ %s.",
+                ((pile_size(tok_pile) > 3) ? ("[ ... ") : ("[")),
+                (char *)pile_peek(tok_pile, 1), token,
+                (char *)list_next(tok_iter), 
+                (list_hasnext(tok_iter) ? (" ... ]") : ("]")), errmsg);
         } else {
-            snprintf(parser->errmsg_buf, ERRMSG_MAXLEN, "<br>Error around token %d, '%s' ~ %s.",
+            snprintf(parser->errmsg_buf, ERRMSG_MAXLEN,
+                "<br>Error around token %d: \"%s\" ~ %s.",
                 pile_size(tok_pile), token, errmsg); 
         }
         status = SYNTAX_ERROR;
@@ -311,17 +309,12 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
     }
 
 end:
-    /* cleanup */
-    if (tok_iter) 
-        list_destroyiter(tok_iter);
-    if (paren_pile)
-        pile_destroy(paren_pile);
-    if (tok_pile)
-        pile_destroy(tok_pile);
-    if (searched_words) 
-        map_destroy(searched_words, NULL, NULL);
-    if (status != PARSE_READY)
-        destroy_querynodes(leftmost);
+    /* cleanup and return */
+    if (tok_iter) list_destroyiter(tok_iter);
+    if (paren_pile) pile_destroy(paren_pile);
+    if (tok_pile) pile_destroy(tok_pile);
+    if (searched_words) map_destroy(searched_words, NULL, NULL);
+    if (status != PARSE_READY) destroy_querynodes(leftmost);
 
     return status;
 }

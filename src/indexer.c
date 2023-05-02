@@ -431,7 +431,7 @@ int main(int argc, char **argv) {
     list_iter_t *iter;
 
     if (argc != 2) {
-        DEBUG_PRINT("Usage: %s <root-dir>\n", argv[0]);
+        printf("Usage: %s <root-dir>\n", argv[0]);
         return 1;
     }
 
@@ -439,26 +439,32 @@ int main(int argc, char **argv) {
 
     /* Check that root_dir exists and is directory */
     if (!is_valid_directory(root_dir)) {
+        printf("invalid root_dir\n");
         return 1;
     }
+
+    printf("Finding files at %s \n", root_dir);
 
     files = find_files(root_dir);
     idx = index_create();
     if (idx == NULL) { 
-        ERROR_PRINT("Failed to create index\n");
+        printf("Failed to create index\n");
         return 1;
     }
 
     iter = list_createiter(files);
 
-    int n_added = 0;
-    printf("indexing %d files:\n", list_size(files) - 1);
+    int progress = 0;
+    const int n_files = list_size(files);
+    printf("Found %d files\n", n_files);
     while (list_hasnext(iter)) {
         relpath = (char *)list_next(iter);
         fullpath = concatenate_strings(2, root_dir, relpath);
 
-        printf("\r%d", n_added);
-        fflush(stdout);
+        if (progress % ADDPATH_PRINT_INTERVAL == 0) {
+            printf("\rIndexing %d", progress);
+            fflush(stdout);
+        }
 
         words = list_create((cmpfunc_t)strcmp);
         tokenize_file(fullpath, words);
@@ -466,14 +472,14 @@ int main(int argc, char **argv) {
 
         free(fullpath);
         list_destroy(words);
-        n_added++;
+        progress++;
     }
-    printf("\n");
 
     list_destroyiter(iter);
     list_destroy(files);
 
-    DEBUG_PRINT("Indexer: Serving queries on port %s:%d\n", "127.0.0.1", (int)PORT_NUM);
+    printf("\rIndexing Finished\n");
+    printf("Serving queries on port %s:%d\n", "127.0.0.1", (int)PORT_NUM);
 
     status = http_server((int)PORT_NUM, http_handler);
     index_destroy(idx);

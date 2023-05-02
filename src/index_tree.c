@@ -129,8 +129,9 @@ index_t *index_create() {
 }
 
 void index_destroy(index_t *index) {
-    // int n_freed_words = 0;
-    // int n_freed_docs = 0;
+    printf("destroying index ... \n");
+    int n_freed_words = 0;
+    int n_freed_docs = 0;
 
     /* Documents are shared within sets of indexed words, 
      * so put them in a set priort to freeing to avoid any hocus pocus
@@ -163,7 +164,7 @@ void index_destroy(index_t *index) {
         set_destroy(curr->idocs);
         free(curr->word);
         free(curr);
-        // n_freed_words++;
+        n_freed_words++;
     }
     set_destroyiter(iword_iter);
     set_destroy(index->iwords);
@@ -181,7 +182,7 @@ void index_destroy(index_t *index) {
         map_destroy(doc->terms, NULL, free);
         free(doc->path);
         free(doc);
-        // n_freed_docs++;
+        n_freed_docs++;
     }
     set_destroyiter(all_docs_iter);
     set_destroy(all_docs);
@@ -191,8 +192,8 @@ void index_destroy(index_t *index) {
     free(index->iword_buf);
     free(index);
 
-    // DEBUG_PRINT("index_destroy: Freed %d documents, %d words\n", 
-    //     n_freed_docs, n_freed_words);
+    printf("index_destroy: Freed %d documents, %d words\n", 
+        n_freed_docs, n_freed_words);
 }
 
 void index_addpath(index_t *index, char *path, list_t *tokens) {

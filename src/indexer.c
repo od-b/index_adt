@@ -17,7 +17,7 @@
 
 
 #define PORT_NUM 8080
-#define ADDPATH_PRINT_INTERVAL 500
+#define ADDPATH_PRINT_INTERVAL 1000
 
 static pthread_mutex_t query_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -451,16 +451,14 @@ int main(int argc, char **argv) {
 
     iter = list_createiter(files);
 
-    // int n_added = 0;
-    // int n_files = list_size(files) - 1;
-
+    int n_added = 0;
+    printf("indexing %d files:\n", list_size(files) - 1);
     while (list_hasnext(iter)) {
         relpath = (char *)list_next(iter);
         fullpath = concatenate_strings(2, root_dir, relpath);
 
-        // if ((n_added % ADDPATH_PRINT_INTERVAL == 0) || (n_added == n_files)) {
-        //     DEBUG_PRINT("Indexing %s\n", fullpath);
-        // }
+        printf("\r%d", n_added);
+        fflush(stdout);
 
         words = list_create((cmpfunc_t)strcmp);
         tokenize_file(fullpath, words);
@@ -468,8 +466,9 @@ int main(int argc, char **argv) {
 
         free(fullpath);
         list_destroy(words);
-        // n_added++;
+        n_added++;
     }
+    printf("\n");
 
     list_destroyiter(iter);
     list_destroy(files);

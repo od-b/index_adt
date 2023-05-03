@@ -18,7 +18,6 @@
 
 #define ADDPATH_PRINT_INTERVAL 500
 
-
 #define PORT_NUM 8080
 
 static pthread_mutex_t query_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -238,7 +237,13 @@ static void run_query(FILE *f, char *query) {
         goto end;
 
     unsigned long long a_time = gettime();
+
+    ProfilerStart("/tmp/test.prof");
+
     result = index_query(idx, tokens, &errmsg);
+
+    ProfilerStop();
+
     unsigned long long b_time = (gettime() - a_time);
 
     if (result != NULL){

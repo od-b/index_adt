@@ -30,16 +30,27 @@ ASSERT_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(ASSERT_SRC))
 # Find all header files
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
+PROF_SRC = L/opt/homebrew/Cellar/gperftools/2.10/lib
+DATA_SRC = /Users/odin/code/C/eksamen23/index/data/cacm/
+BIN_SRC = /Users/odin/code/C/eksamen23/index/indexer
+PROF_OUT = /tmp/test.prof
+SIGNAL = 12		# killall -12 indexer
+
+PROF_ARGS = CPUPROFILE=${PROF_OUT} CPUPROFILESIGNAL=${SIGNAL} ${BIN_SRC} ${DATA_SRC}
+
+# CPUPROFILE=/tmp/test.prof <path/to/binary> [binary args]
+# include "/opt/homebrew/Cellar/gperftools/2.10/include/gperftools/profiler.h"
 
 # FLAGS = -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
 FLAGS = -O2 -g
+CPROF = -${PROF_SRC} && ${PROF_ARGS}
 
 .PHONY=all
 
 all: $(INDEXER)
 
 $(INDEXER): $(INDEXER_SRC) $(HEADERS) Makefile
-	gcc -Wall -o $@ -D_GNU_SOURCE -D_REENTRANT $(INDEXER_SRC) -I$(INCLUDE_DIR) -lm -lpthread $(FLAGS)
+	gcc -Wall -o $@ -D_GNU_SOURCE -D_REENTRANT $(INDEXER_SRC) -I$(INCLUDE_DIR) -lm -lpthread $(FLAGS) ${CPROF}
 
 $(ASSERT_INDEX): $(ASSERT_SRC) $(HEADERS) Makefile
 	gcc -o $@ $(ASSERT_SRC) -I$(INCLUDE_DIR) -lm $(FLAGS)

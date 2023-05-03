@@ -22,19 +22,6 @@
 #include <ctype.h>
 
 
-char *copy_string(const char *src) {
-    size_t len = strlen(src) + 1;
-
-    char *s = malloc(len);
-    if (s == NULL) {
-        return NULL;
-    }
-
-    strncpy(s, src, len);
-
-    return s;
-}
-
 
 /* --- PRECODE --- */
 

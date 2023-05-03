@@ -1,8 +1,8 @@
-/* 
- * Authors: 
- * Steffen Viken Valvaag <steffenv@cs.uit.no> 
- * Magnus Stenhaug <magnus.stenhaug@uit.no> 
- * Erlend Helland Graff <erlend.h.graff@uit.no> 
+/*
+ * Authors:
+ * Steffen Viken Valvaag <steffenv@cs.uit.no>
+ * Magnus Stenhaug <magnus.stenhaug@uit.no>
+ * Erlend Helland Graff <erlend.h.graff@uit.no>
  */
 
 #include "httpd.h"
@@ -67,7 +67,7 @@ static int splitstring(char *s, int sep, char **left, char **right) {
 
     *left = stripstring(s, p-s);
     *right = stripstring(p+1, strlen(p+1));
-    return 1;    
+    return 1;
 }
 
 static int hexdigit(char ch) {
@@ -87,7 +87,7 @@ static char *urldecode(char *s) {
 
     r = p = newstring(strlen(s));
 
-    for (;;) {    
+    for (;;) {
         int ch = *s++;
         switch(ch) {
         case 0:
@@ -135,7 +135,7 @@ char *html_escape(char *s) {
         default:
             *p++ = ch;
             break;
-        }        
+        }
     }
 }
 
@@ -177,16 +177,16 @@ static int http_parse_query(char *query, map_t *fields) {
         if (splitstring(buf, '=', &key, &value)) {
             tmp = key;
             key = urldecode(tmp);
-            free (tmp);
-			
+            free(tmp);
+
             tmp = value;
             value = urldecode(tmp);
             free(tmp);
-			
+
             map_put(fields, key, value);
         } else {
             key = newstring(strlen(buf));
-            strcpy (key, buf);
+            strcpy(key, buf);
             value = "";
             map_put(fields, key, value);
         }
@@ -531,14 +531,14 @@ int http_server(unsigned short port, http_handler_t handler) {
     }
 
     DEBUG_PRINT("Running HTTP server!\n");
-	
+
     thidx = 0;
 
     /*
      * Accept TCP connections.
      */
     while (server_is_running) {
-        len = sizeof(struct sockaddr_in);      
+        len = sizeof(struct sockaddr_in);
         t = accept(sock, (struct sockaddr *)&clientaddr, &len);
 
         if (t < 0) {
@@ -549,11 +549,11 @@ int http_server(unsigned short port, http_handler_t handler) {
         conn = malloc(sizeof(struct http_conn));
         conn->sock = t;
         conn->handler = handler;
-		
+
         if (started[thidx]) {
             (void)pthread_join(threads[thidx], NULL);
         }
-		
+
         started[thidx] = 1;
 
         /* Launch a threads to handle the connection */
@@ -565,7 +565,7 @@ int http_server(unsigned short port, http_handler_t handler) {
 
         thidx = (thidx + 1) % MAX_THREADS;
     }
-	
+
     for (i = 0; i < MAX_THREADS; i++) {
         if (started[i]) {
             (void)pthread_join(threads[i], NULL);

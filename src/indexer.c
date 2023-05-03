@@ -16,8 +16,10 @@
 #include <ctype.h>
 
 
+#define ADDPATH_PRINT_INTERVAL 500
+
+
 #define PORT_NUM 8080
-#define ADDPATH_PRINT_INTERVAL 1000
 
 static pthread_mutex_t query_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -327,7 +329,7 @@ static void handle_query(FILE *f, char *query) {
 
     FILE *tpl = fopen("template.html", "r");
     parse_html_template(tpl, f, query);
-    fclose (tpl);
+    fclose(tpl);
 }
 
 static const char *get_mime_type(const char *path) {
@@ -443,7 +445,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    printf("Finding files at %s \n", root_dir);
+    printf("\nFinding files at %s \n", root_dir);
 
     files = find_files(root_dir);
     idx = index_create();
@@ -455,30 +457,31 @@ int main(int argc, char **argv) {
     iter = list_createiter(files);
 
     int progress = 0;
+    int status_ok = 1;
     const int n_files = list_size(files);
-    printf("Found %d files\n", n_files);
-    while (list_hasnext(iter)) {
+    printf("Found %d files in dir, indexing up to %d unique words\n", n_files, (int)WORDS_LIMIT);
+
+    while (list_hasnext(iter) && status_ok) {
         relpath = (char *)list_next(iter);
         fullpath = concatenate_strings(2, root_dir, relpath);
 
-        if (progress % ADDPATH_PRINT_INTERVAL == 0) {
-            printf("\rIndexing %d", progress);
+        if (progress++ % ADDPATH_PRINT_INTERVAL == 0) {
+            printf("\rIndexing doc # %d", progress);
             fflush(stdout);
         }
 
         words = list_create((cmpfunc_t)strcmp);
         tokenize_file(fullpath, words);
-        index_addpath(idx, relpath, words);
+
+        status_ok = index_addpath(idx, relpath, words);
 
         free(fullpath);
         list_destroy(words);
-        progress++;
     }
 
     list_destroyiter(iter);
     list_destroy(files);
 
-    printf("\rIndexing Finished\n");
     printf("Serving queries on port %s:%d\n", "127.0.0.1", (int)PORT_NUM);
 
     status = http_server((int)PORT_NUM, http_handler);

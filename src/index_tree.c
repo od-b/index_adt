@@ -192,33 +192,31 @@ void index_destroy(index_t *index) {
     free(index->iword_buf);
     free(index);
 
-    printf("index_destroy: Freed %d documents, %d words\n", 
+    printf("index_destroy: Freed %d documents, %d unique words\n", 
         n_freed_docs, n_freed_words);
 }
 
-void index_addpath(index_t *index, char *path, list_t *tokens) {
+int index_addpath(index_t *index, char *path, list_t *tokens) {
     /*
-     * Personal note:
      * Not certain how a malloc failure should be handled, and especially
-     * not within this functions, as there's no return value.
+     * not within this functions, seeing as there's no return value.
     */
-
     if (list_size(tokens) == 0) {
         // DEBUG_PRINT("given path with no tokens: %s\n", path);
-        return;
+        return 1;
     }
 
     list_iter_t *tok_iter = list_createiter(tokens);
     idocument_t *doc = malloc(sizeof(idocument_t));
     if (!doc || !tok_iter) {
         // ERROR_PRINT("malloc failed\n");
-        return;
+        return 0;
     }
 
     doc->terms = map_create((cmpfunc_t)strcmp, hash_string);
     if (!doc->terms) {
         // ERROR_PRINT("malloc failed\n");
-        return;
+        return 0;
     }
 
     index->n_docs++;
@@ -237,14 +235,14 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
             iword->idocs = set_create((cmpfunc_t)compare_idocs_by_path);
             if (!iword->idocs) {
                 // ERROR_PRINT("malloc failed\n");
-                return;
+                return 0;
             }
 
             /* Since the search word was added, create a new iword for searching. */
             index->iword_buf = malloc(sizeof(iword_t));
             if (!index->iword_buf) {
                 // ERROR_PRINT("malloc failed\n");
-                return;
+                return 0;
             }
             index->iword_buf->idocs = NULL;
         } else {
@@ -258,7 +256,7 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
             term = malloc(sizeof(idocument_term_t));
             if (!term) {
                 // ERROR_PRINT("malloc failed\n");
-                return;
+                return 0;
             }
             term->freq = 1;
             term->iword = iword;
@@ -272,6 +270,12 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
     }
 
     list_destroyiter(tok_iter);
+
+    if (set_size(index->iwords) >= WORDS_LIMIT) {
+        printf("\nindex: docs = %d, unique words = %d\n", index->n_docs, set_size(index->iwords));
+        return 0;
+    }
+    return 1;
 }
 
 

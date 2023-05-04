@@ -1,23 +1,25 @@
 ''' 
-Simple program to automate sending queries through localhost
+  Simple program to automate sending queries through localhost
 
-* * Required modules_
+Required modules:
 * selenium
-* english_words -> https://pypi.org/project/english-words/
+* english_words -> pip install english_words, docs: https://pypi.org/project/english-words/
 
-* * Required executables:
+Required executables:
 * chrome
 * chrome webdriver
 '''
+
+
 ##################### SETTINGS ######################
 
 DISPLAY_WINDOW = True
 HOST = "http://localhost:8080/"
 
-SLEEP_INTERVAL = 1
-N_QUERIES = 10
-BAR_WIDTH = 100     # bar wont work with N_QUERIES above 100 :^)
-N_TERMS = 3   # how many chained ´(<word> <op> <word>) <op> ... `
+SLEEP_INTERVAL = 0.1
+N_QUERIES = 100
+N_TERMS = 1   # how many chained ´(<word> <op> <word>) <op> ... `
+SIMPLE_TERM = True
 
 SYNTAX_STRESSTEST = False   # try to make the program segfault through faulty syntax
 STRESS_A = int(2)   # minrange of stuff * each query
@@ -28,6 +30,7 @@ STRESS_B = int(4)   # maxrange of stuff * each query
 
 import sys
 import time
+import psutil
 from random import randint as randint
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -36,12 +39,12 @@ from selenium.webdriver.chrome.options import Options
 from english_words import get_english_words_set
 
 
-service=Service("WebDrivers_path\chromedriver.exe") # copied this from somewhere. works for me but idk
+service=Service("WebDrivers_path\chromedriver.exe")  # auto find chromedriver
 options = Options()
 
 if not DISPLAY_WINDOW:
-    options.add_argument('--headless')      # comment out to show the window
-    options.add_argument('--disable-gpu')   # comment out to show the window
+    options.add_argument('--headless')
+    options.add_argument('--disable-gpu')
 
 driver = webdriver.Chrome(options=options, service=service)
 driver.get(HOST)
@@ -50,14 +53,10 @@ driver.get(HOST)
 # set up word list
 WORDS = list(get_english_words_set(['web2'], True, True))
 WORDS_LEN = int(len(WORDS) - 1)
-print(f'n. words in set: {WORDS_LEN}')
 
 # define operators
 OPERATORS = ["AND", "ANDNOT", "OR"]
 OPERATORS_LEN = int(len(OPERATORS) - 1)
-
-# super sophisticated progress bar
-BAR_PER_QUERY = '#' * int(BAR_WIDTH / N_QUERIES)
 
 
 def word():
@@ -70,9 +69,10 @@ def term():
     return f'({word()} {operator()} {word()})'
 
 
-# submit queries
-for _ in range(N_QUERIES):
-    sys.stdout.write(f'{BAR_PER_QUERY}')
+print(f'run_querys.py: running random queries from set of {WORDS_LEN} words')
+
+for n in range(N_QUERIES):
+    sys.stdout.write(f'\r{n} / {N_QUERIES-1}')
     sys.stdout.flush()
 
     search_box = driver.find_element(By.NAME, "query")
@@ -90,11 +90,13 @@ for _ in range(N_QUERIES):
                 case 3:
                     query += f' {operator()} ({term()} {operator()} {term()}) {operator()} {term()} {operator()} '
         query += f' {term()} '
-
+    elif (SIMPLE_TERM):
+        query += f'{term()}'
+    elif (N_TERMS == 1):
+        query += f'{term()} {operator()} {word()}'
     else:
         for j in range(0, N_TERMS - 1):
-            query += f' ({term()} {operator()} {word()}) '
-            query += f' {operator()} '
+            query += f' ({term()} {operator()} {word()}) {operator()} '
         query += f' {word()} '
 
 
@@ -104,6 +106,11 @@ for _ in range(N_QUERIES):
     search_box.clear()
     time.sleep(SLEEP_INTERVAL)
 
-
-print("\nDone")
 driver.quit()
+
+print("\nDone, terminating indexer")
+
+for proc in psutil.process_iter():
+    if proc.name() == "indexer":
+        proc.terminate()
+

@@ -124,7 +124,7 @@ index_t *index_create() {
 
     index->iword_buf->word = NULL;
     index->iword_buf->idocs = NULL;
-
+    index->n_docs = 0;
     return index;
 }
 

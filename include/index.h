@@ -4,7 +4,7 @@
 
 #include "list.h"
 
-#define WORDS_LIMIT 50000   /* TESTING */
+#define WORDS_LIMIT 10000000000   /* TESTING */
 
 struct index;
 typedef struct index index_t;

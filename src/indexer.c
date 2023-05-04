@@ -186,24 +186,25 @@ static list_t *preprocess_query(char *query) {
 
     return processed;
 }
+// static void send_results(FILE *f, char *query, list_t *results, unsigned long long *time) {
 
-static void send_results(FILE *f, char *query, list_t *results, unsigned long long *time) {
+static void send_results(FILE *f, char *query, list_t *results) {
     char *tmp;
     list_iter_t *it;
 
     tmp = html_escape(query);
 
-    const int n_results = list_size(results);
+    // const int n_results = list_size(results);
 
-    double ms_time = (float)(*time) / 1000;
-
-    if (!n_results) {
-        fprintf(f, "<hr/><h3>Your query for \"%s\" returned no results</h3>\n", tmp);
-        // printf("... in %.6fms\n", ms_time);
-    } else {
-        fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result%s in %.3fms</h3>\n",
-            tmp, n_results, ((n_results > 1) ? ("s") : ("")), ms_time);
-    }
+    // double ms_time = (float)(*time) / 1000;
+    fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result(s) </h3>\n", tmp, list_size(results));
+    // if (!n_results) {
+    //     fprintf(f, "<hr/><h3>Your query for \"%s\" returned no results</h3>\n", tmp);
+    //     // printf("... in %.6fms\n", ms_time);
+    // } else {
+    //     fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result%s in %.3fms</h3>\n",
+    //         tmp, n_results, ((n_results > 1) ? ("s") : ("")), ms_time);
+    // }
 
     free(tmp);
 
@@ -236,18 +237,18 @@ static void run_query(FILE *f, char *query) {
     if (!list_size(tokens))
         goto end;
 
-    unsigned long long a_time = gettime();
+    // unsigned long long a_time = gettime();
 
-    ProfilerStart("/tmp/test.prof");
+    // ProfilerStart("/tmp/en_100k.prof");
 
     result = index_query(idx, tokens, &errmsg);
 
-    ProfilerStop();
+    // ProfilerStop();
 
-    unsigned long long b_time = (gettime() - a_time);
+    // unsigned long long b_time = (gettime() - a_time);
 
     if (result != NULL){
-        send_results(f, query, result, &b_time);
+        send_results(f, query, result);
         list_destroy(result);
     } else {
         fprintf(f, "<hr/><h3>Error</h3>\n");
@@ -470,10 +471,11 @@ int main(int argc, char **argv) {
         relpath = (char *)list_next(iter);
         fullpath = concatenate_strings(2, root_dir, relpath);
 
-        if (progress++ % ADDPATH_PRINT_INTERVAL == 0) {
+        if (progress % ADDPATH_PRINT_INTERVAL == 0) {
             printf("\rIndexing doc # %d", progress);
             fflush(stdout);
         }
+        progress++;
 
         words = list_create((cmpfunc_t)strcmp);
         tokenize_file(fullpath, words);
@@ -487,7 +489,7 @@ int main(int argc, char **argv) {
     list_destroyiter(iter);
     list_destroy(files);
 
-    printf("Serving queries on port %s:%d\n", "127.0.0.1", (int)PORT_NUM);
+    printf("\nServing queries on port %s:%d\n", "127.0.0.1", (int)PORT_NUM);
 
     status = http_server((int)PORT_NUM, http_handler);
     index_destroy(idx);

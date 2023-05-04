@@ -1,0 +1,115 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 37.43    128.82   128.82 696116788     0.00     0.00  insert
+ 16.07    184.14    55.32 3546449314     0.00     0.00  compare_idocs_by_path
+ 14.03    232.42    48.28 568898470     0.00     0.00  set_tryadd
+ 11.62    272.41    39.99 3225021886     0.00     0.00  strcmp_iwords
+  4.95    289.46    17.05 127525795     0.00     0.00  set_next
+  3.79    302.51    13.05 568899866     0.00     0.00  map_get
+  3.23    313.61    11.10  1418307     0.00     0.00  set_destroy
+  1.48    318.72     5.11 125804901     0.00     0.00  map_put
+  1.35    323.38     4.66 870810483     0.00     0.00  hash_string
+  1.06    327.04     3.66   305725     0.00     0.00  index_addpath
+  0.86    330.00     2.96   305725     0.00     0.00  tokenize_file
+  0.65    332.23     2.23   306060     0.00     0.00  list_destroy
+  0.63    334.40     2.17                             _init
+  0.62    336.53     2.13   306433     0.00     0.00  map_destroy
+  0.53    338.36     1.83 569206398     0.00     0.00  list_next
+  0.50    340.09     1.73 2211273463     0.00     0.00  compare_pointers
+  0.43    341.56     1.47 569206656     0.00     0.00  list_addlast
+  0.33    342.70     1.14 694698560     0.00     0.00  set_add
+  0.17    343.27     0.57 569512546     0.00     0.00  list_hasnext
+  0.15    343.79     0.52        1     0.52    64.96  index_destroy
+  0.08    344.06     0.27 128944644     0.00     0.00  set_hasnext
+  0.01    344.08     0.02  1418849     0.00     0.00  set_createiter
+  0.01    344.10     0.02  1418849     0.00     0.00  set_destroyiter
+  0.01    344.12     0.02  1418275     0.00     0.00  set_create
+  0.01    344.14     0.02                             main
+  0.00    344.15     0.01   611450     0.00     0.00  concatenate_strings
+  0.00    344.16     0.01   306148     0.00     0.00  list_destroyiter
+  0.00    344.16     0.00   306433     0.00     0.00  map_create
+  0.00    344.16     0.00   306374     0.00     0.00  set_size
+  0.00    344.16     0.00   306148     0.00     0.00  list_createiter
+  0.00    344.16     0.00   306060     0.00     0.00  list_create
+  0.00    344.16     0.00   306059     0.00     0.00  list_size
+  0.00    344.16     0.00    11925     0.00     0.00  newstring
+  0.00    344.16     0.00     9306     0.00     0.00  stripstring
+  0.00    344.16     0.00     4347     0.00     0.00  compare_strings
+  0.00    344.16     0.00     2364     0.00     0.00  compare_query_results_by_score
+  0.00    344.16     0.00      863     0.00     0.00  list_popfirst
+  0.00    344.16     0.00      799     0.00     0.00  html_escape
+  0.00    344.16     0.00      700     0.00     0.00  is_reserved_word
+  0.00    344.16     0.00      604     0.00     0.00  map_haskey
+  0.00    344.16     0.00      600     0.00     0.00  pile_push
+  0.00    344.16     0.00      504     0.00     0.00  urldecode
+  0.00    344.16     0.00      304     0.00     0.00  http_handler
+  0.00    344.16     0.00      303     0.00     0.00  http_ok
+  0.00    344.16     0.00      203     0.00     0.00  handle_page.constprop.0
+  0.00    344.16     0.00      203     0.00     0.00  is_valid_file
+  0.00    344.16     0.00      202     0.00     0.00  print_title
+  0.00    344.16     0.00      200     0.00     0.00  get_iword_docs
+  0.00    344.16     0.00      200     0.00     0.00  pile_create
+  0.00    344.16     0.00      200     0.00     0.00  pile_destroy
+  0.00    344.16     0.00      200     0.00     0.00  set_get
+  0.00    344.16     0.00      101     0.00     0.00  print_processed_querystring
+  0.00    344.16     0.00      101     0.00     0.00  run_query
+  0.00    344.16     0.00      100     0.00     0.00  index_query
+  0.00    344.16     0.00      100     0.00     0.00  parser_scan
+  0.00    344.16     0.00      100     0.00     0.00  pile_pop
+  0.00    344.16     0.00      100     0.00     0.00  pile_size
+  0.00    344.16     0.00       45     0.00     0.00  parse_node
+  0.00    344.16     0.00       45     0.00     0.00  parser_get_result
+  0.00    344.16     0.00       32     0.00     0.00  buildset
+  0.00    344.16     0.00       30     0.00     0.00  buildtree
+  0.00    344.16     0.00       21     0.00     0.00  list_sort
+  0.00    344.16     0.00       21     0.00     0.00  mergesort_
+  0.00    344.16     0.00       21     0.00     0.00  set_copy
+  0.00    344.16     0.00        5     0.00     0.00  set_union
+  0.00    344.16     0.00        4     0.00     0.00  set_difference
+  0.00    344.16     0.00        2     0.00     0.00  set_intersection
+  0.00    344.16     0.00        1     0.00     0.01  _find_files
+  0.00    344.16     0.00        1     0.00     0.01  find_files
+  0.00    344.16     0.00        1     0.00     0.00  http_notfound
+  0.00    344.16     0.00        1     0.00     0.00  http_server
+  0.00    344.16     0.00        1     0.00     0.00  index_create
+  0.00    344.16     0.00        1     0.00     0.00  is_valid_directory
+  0.00    344.16     0.00        1     0.00     0.00  open_socket
+  0.00    344.16     0.00        1     0.00     0.00  parser_create
+  0.00    344.16     0.00        1     0.00     0.00  parser_destroy
+  0.00    344.16     0.00        1     0.00     0.00  setup_kill_signals
+
+ %         the percentage of the total running time of the
+time       program used by this function.
+
+cumulative a running sum of the number of seconds accounted
+ seconds   for by this function and those listed above it.
+
+ self      the number of seconds accounted for by this
+seconds    function alone.  This is the major sort for this
+           listing.
+
+calls      the number of times this function was invoked, if
+           this function is profiled, else blank.
+
+ self      the average number of milliseconds spent in this
+ms/call    function per call, if this function is profiled,
+	   else blank.
+
+ total     the average number of milliseconds spent in this
+ms/call    function and its descendents per call, if this
+	   function is profiled, else blank.
+
+name       the name of the function.  This is the minor sort
+           for this listing. The index shows the location of
+	   the function in the gprof listing. If the index is
+	   in parenthesis it shows where it would appear in
+	   the gprof listing if it were to be printed.
+
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.

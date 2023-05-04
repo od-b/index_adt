@@ -4,7 +4,7 @@
 
 #include "list.h"
 
-#define WORDS_LIMIT 10000000000   /* TESTING */
+#define WORDS_LIMIT 100000000   /* TESTING */
 
 struct index;
 typedef struct index index_t;
@@ -44,5 +44,4 @@ int index_addpath(index_t *index, char *path, list_t *tokens);    /* TESTING */
 list_t *index_query(index_t *index, list_t *tokens, char **errmsg);
 
 #endif
-
 

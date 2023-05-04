@@ -2,8 +2,6 @@
 ## Steffen Viken Valvaag <steffenv@cs.uit.no>
 ## Morten Grønnesby <morten.gronnesby@uit.no>
 
-# Common sources to build both binaries
-# You can change these values to test with different implementations (for example chained hashmap vs open addressing) 
 LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
 SET_SRC=aatreeset.c

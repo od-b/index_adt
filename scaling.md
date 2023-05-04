@@ -9,7 +9,7 @@ Source: <https://dumps.wikimedia.org/other/static_html_dumps/April_2007/en/>, at
 The size of the set is ≈1.1gb compressed and ≈16gb extracted.
 
 There are a number of reasons for using this set to perform profiling and experiments.
-During development it was discovered that words such as `bjørn` will be imported as the two words `bj` and `rn` by the tokenizer, and subsequently index. This would be fine, if it was not for the fact that the indexer does tokenize query words in the same fashion. Due to this discrepancy, any search for 'bjørn' will come up empty. Following this observation, performing the tests on a English set seemed intuitive, rather than using a set of documents containing mostly Norwegian terms, as proposed by the assignment paper.
+During development it was discovered that words such as `bjørn` will be imported as the two words `bj` and `rn` by the tokenizer, and subsequently index. This would be fine, if it was not for the fact that indexer tokenizes queries in a different manner. Due to this discrepancy, any search for 'bjørn' will come up empty. Following this observation, performing the tests on a English set seemed intuitive, rather than using a set of documents containing mostly Norwegian terms, as proposed by the assignment paper.
 Apart from this, the files within the set are of varying size, providing a more 'natural' setting than data with fairly uniform file sizes, such as the provided 'cacm' set.
 
 

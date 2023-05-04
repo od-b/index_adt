@@ -37,19 +37,20 @@ struct index {
     set_t    *iwords;       // set of all indexed words
     iword_t  *iword_buf;    // buffer of one iword for searching and adding words
     parser_t *parser;
+    set_t    *query_words;  // temp set used to contain <word>'s currently being queried
     int       n_docs;
 };
 
 /* Type of indexed word */
 struct iword {
     char   *word;
-    set_t  *idocs;  // set of paths where ->word can be found
+    set_t  *in_docs;  // set of paths where ->word can be found
 };
 
 /* Type of indexed document */
 struct idocument {
     char  *path;
-    map_t *terms;
+    map_t *terms;   // {'char *word' => 'idocument_term_t *term'}
 };
 
 /* Type of term within indexed document */
@@ -65,7 +66,7 @@ int strcmp_iwords(iword_t *a, iword_t *b) {
 
 /* Compares two iword_t based on the size of their path sets */
 int compare_iwords_by_occurance(iword_t *a, iword_t *b) {
-    return (set_size(a->idocs) - set_size(b->idocs));
+    return (set_size(a->in_docs) - set_size(b->in_docs));
 }
 
 int compare_idocs_by_path(idocument_t *a, idocument_t *b) {
@@ -78,12 +79,15 @@ int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
     return 0;
 }
 
+/* used by the parser to search within the index. */
 set_t *get_iword_docs(index_t *index, char *word) {
     index->iword_buf->word = word;
     iword_t *result = set_get(index->iwords, index->iword_buf);
 
-    if (result)
-        return result->idocs;
+    if (result) {
+        set_add(index->query_words, result);
+        return result->in_docs;
+    }
     return NULL;
 }
 
@@ -121,10 +125,12 @@ index_t *index_create() {
         free(index->iword_buf);
         return NULL;
     }
-
     index->iword_buf->word = NULL;
-    index->iword_buf->idocs = NULL;
+    index->iword_buf->in_docs = NULL;
+
     index->n_docs = 0;
+    index->query_words = NULL;
+
     return index;
 }
 
@@ -133,7 +139,7 @@ void index_destroy(index_t *index) {
     int n_freed_words = 0;
     int n_freed_docs = 0;
 
-    /* Documents are shared within sets of indexed words, 
+    /* Documents are shared within sets of indexed words,
      * so put them in a set priort to freeing to avoid any hocus pocus
      * such as double free or potentially dismembering trees.
      */
@@ -148,7 +154,7 @@ void index_destroy(index_t *index) {
     /* free the set of indexed words while creating a joint set of documents. */
     while (set_hasnext(iword_iter)) {
         iword_t *curr = set_next(iword_iter);
-        set_iter_t *doc_iter = set_createiter(curr->idocs);
+        set_iter_t *doc_iter = set_createiter(curr->in_docs);
         if (!doc_iter) {
             // ERROR_PRINT("failed to allocate memory\n");
             return;
@@ -161,7 +167,7 @@ void index_destroy(index_t *index) {
         set_destroyiter(doc_iter);
 
         /* free the iword & its members */
-        set_destroy(curr->idocs);
+        set_destroy(curr->in_docs);
         free(curr->word);
         free(curr);
         n_freed_words++;
@@ -192,7 +198,7 @@ void index_destroy(index_t *index) {
     free(index->iword_buf);
     free(index);
 
-    printf("index_destroy: Freed %d documents, %d unique words\n", 
+    printf("index_destroy: Freed %d documents, %d unique words\n",
         n_freed_docs, n_freed_words);
 }
 
@@ -232,8 +238,8 @@ int index_addpath(index_t *index, char *path, list_t *tokens) {
         if (iword == index->iword_buf) {
             /* first index entry for this word. initialize it as an indexed word. */
             iword->word = tok;
-            iword->idocs = set_create((cmpfunc_t)compare_idocs_by_path);
-            if (!iword->idocs) {
+            iword->in_docs = set_create((cmpfunc_t)compare_idocs_by_path);
+            if (!iword->in_docs) {
                 // ERROR_PRINT("malloc failed\n");
                 return 0;
             }
@@ -244,7 +250,7 @@ int index_addpath(index_t *index, char *path, list_t *tokens) {
                 // ERROR_PRINT("malloc failed\n");
                 return 0;
             }
-            index->iword_buf->idocs = NULL;
+            index->iword_buf->in_docs = NULL;
         } else {
             /* index is already storing this word. free the duplicate string. */
             free(tok);
@@ -266,7 +272,7 @@ int index_addpath(index_t *index, char *path, list_t *tokens) {
         }
 
         /* add path to the indexed words set. */
-        set_add(iword->idocs, doc);
+        set_add(iword->in_docs, doc);
     }
 
     list_destroyiter(tok_iter);
@@ -290,63 +296,47 @@ int index_addpath(index_t *index, char *path, list_t *tokens) {
  * Returns a sorted list of query results, created from each path in the given set.
  * Calculates score through a naive implementation of if-idf
  */
-static list_t *format_query_results(index_t *index, list_t *tokens, set_t *docs) {
+static list_t *format_query_results(index_t *index, set_t *docs) {
     list_t *query_results = list_create((cmpfunc_t)compare_query_results_by_score);
-    set_t *search_terms = set_create((cmpfunc_t)strcmp);
-    list_iter_t *tok_iter = list_createiter(tokens);
     set_iter_t *docs_iter = set_createiter(docs);
 
-    if (!query_results || !search_terms || !tok_iter || !docs_iter) {
+    if (!query_results || !docs_iter) {
         goto alloc_error;
     }
 
-    /* Create a set from the token words.
-     * Operators/parantheses will not be indexed, but having them in the set 
-     * increase the amount of dead map calls within the main loop. 
-     */
-    while (list_hasnext(tok_iter)) {
-        char *tok = list_next(tok_iter);
-        /* Filter out nonterms */
-        switch (tok[0]) {
-            case (')'): break;
-            case ('('): break;
-            case ('A'): break;
-            case ('O'): break;
-            default: set_add(search_terms, tok);
-        }
-    }
-    list_destroyiter(tok_iter);
-
     double n_total_docs = (double)index->n_docs;
+    double idf;
 
     while (set_hasnext(docs_iter)) {
         query_result_t *q_result = malloc(sizeof(query_result_t));
         idocument_t *doc = set_next(docs_iter);
 
-        set_iter_t *s_terms_iter = set_createiter(search_terms);
-        if (!s_terms_iter || !q_result) {
-            if (q_result) free(q_result);
+        set_iter_t *qword_iter = set_createiter(index->query_words);
+        if (!qword_iter || !q_result) {
+            if (q_result) {
+                free(q_result);
+            }
             goto alloc_error;
         }
 
         /* Naive implementation of the tf-idf scoring algorithm.
-         * Cross references all search terms with terms in the result doc 
+         * Cross references all search terms with terms in the result doc
          */
-        while (set_hasnext(s_terms_iter)) {
-            idocument_term_t *docterm = map_get(doc->terms, set_next(s_terms_iter));
+        while (set_hasnext(qword_iter)) {
+            iword_t *curr = set_next(qword_iter);
+            idocument_term_t *docterm = map_get(doc->terms, curr->word);
+
             if (docterm) {
                 /* Since doc has the term, it's a relevant term. Calculate tf-idf and add to score */
-                q_result->score += (
-                    (double)docterm->freq   // tf
-                    * log(n_total_docs / (double)set_size(docterm->iword->idocs))  // idf
-                );
+                idf = log(n_total_docs / (double)set_size(curr->in_docs));
+                q_result->score += (double)docterm->freq * idf;
             }
-            /* Notes: 
+            /* Notes:
              * 1) the doc will always get a score from this, as it cannot be here without a matching token
              * 2) division by zero may not occur, as all indexed words must stem from a document
             */
         }
-        set_destroyiter(s_terms_iter);
+        set_destroyiter(qword_iter);
 
         /* assign the document path query result, then add it to the list of results */
         q_result->path = doc->path;
@@ -354,10 +344,7 @@ static list_t *format_query_results(index_t *index, list_t *tokens, set_t *docs)
             goto alloc_error;
         }
     }
-
-    /* cleanup */
     set_destroyiter(docs_iter);
-    set_destroy(search_terms);
 
     /* sort the results by score */
     list_sort(query_results);
@@ -365,9 +352,9 @@ static list_t *format_query_results(index_t *index, list_t *tokens, set_t *docs)
     return query_results;
 
 alloc_error:
-    if (tok_iter) list_destroyiter(tok_iter);
-    if (docs_iter) set_destroyiter(docs_iter);
-    if (search_terms) set_destroy(search_terms);
+    if (docs_iter) {
+        set_destroyiter(docs_iter);
+    }
     if (query_results) {
         void *res;
         while ((res = list_popfirst(query_results)) != NULL) {
@@ -384,42 +371,52 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
         return NULL;
     }
 
-    /* Scan query tokens with the parser */
-    switch (parser_scan(index->parser, tokens)) {
-        case (ALLOC_FAILED):
-            *errmsg = "index failed to allocate memeory";
-            return NULL;
-        case (SYNTAX_ERROR):
-            *errmsg = parser_get_errmsg(index->parser);
-            return NULL;
-        case (SKIP_PARSE):
-            return list_create(DUMMY_CMPFUNC);
-        case (PARSE_READY):
-            break;
-    }
+    list_t *ret_list = NULL;
+    set_t *results = NULL;
 
-    /* parse is ready, proceed to get results */
-    set_t *results = parser_get_result(index->parser);
-
-    /* if the query produced an empty set, return an empty list */
-    if (!set_size(results)) {
-        set_destroy(results);
-        return list_create(DUMMY_CMPFUNC);
-    }
-
-    /* non-empty result set. Create list of query results */
-    list_t *query_results = format_query_results(index, tokens, results);
-
-    /* The set returned by parser is no longer needed. */
-    set_destroy(results);
-
-    /* if all is well, return the results. */
-    if (query_results) {
-        return query_results;
-    } else {
+    /* create a set to store <word> token i_words, if any */
+    index->query_words = set_create((cmpfunc_t)strcmp_iwords);
+    if (!index->query_words) {
         *errmsg = "index failed to allocate memeory";
         return NULL;
     }
+
+    /* give tokens to the parser for scanning */
+    switch (parser_scan(index->parser, tokens)) {
+        case (ALLOC_FAILED):
+            /* no clue if this would even print */
+            *errmsg = "index failed to allocate memeory";
+            break;
+        case (SYNTAX_ERROR):
+            *errmsg = parser_get_errmsg(index->parser);
+            break;
+        case (SKIP_PARSE):
+            ret_list = list_create(DUMMY_CMPFUNC);
+            break;
+        case (PARSE_READY):
+            /* parse is ready, proceed to get results */
+            results = parser_get_result(index->parser);
+
+            if (!results) {
+                *errmsg = "index failed to allocate memeory";
+            } else if (!set_size(results)) {
+                /* query produced an empty set, return an empty list */
+                ret_list = list_create(DUMMY_CMPFUNC);
+            } else {
+                /* nonempty set, format results */
+                ret_list = format_query_results(index, results);
+            }
+            break;
+    }
+
+    /* clean up and return */
+    if (results) {
+        set_destroy(results);
+    }
+    if (index->query_words) {
+        set_destroy(index->query_words);
+    }
+    return ret_list;
 }
 
 

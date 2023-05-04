@@ -274,7 +274,7 @@ static void print_processed_querystring(FILE *fp, char *query) {
     free(q_esc);
 }
 
-static void print_title (FILE *fp, char *query) {
+static void print_title(FILE *fp, char *query) {
     char *title;
 
     title = "Simple Search Engine";

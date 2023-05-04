@@ -1,7 +1,8 @@
-''' simple file generator containing random english words '''
+''' simple program to create html files containing random-ish english words '''
 
 ##################### SETTINGS ######################
-PREFIX = str("./data/gcide/gcide_") # +{i}.html
+OUTDIR = "./data/gcide/"
+FNAMES = "gcide_" #+{file no}.html
 N_FILES = int(3)
 N_WORDS = int(512)   # words per file
 LINE_WIDTH = int(8)  # words per line
@@ -10,7 +11,7 @@ LINE_WIDTH = int(8)  # words per line
 from random import randint
 from english_words import get_english_words_set
 
-WORDS = list(get_english_words_set(['gcide'], True, True))
+WORDS = list(get_english_words_set(['gcide'], alpha=False, lower=False))
 # gcide => Words found in GNU Collaborative International Dictionary of English 0.53
 # https://pypi.org/project/english-words/
 
@@ -18,8 +19,9 @@ WORDS_LEN = int(len(WORDS) - 1)
 N_LINES = int(N_WORDS / LINE_WIDTH)
 L_BEGIN = str('<html> \n<pre> \n\n')
 L_END = str('\n</pre> \n</html> \n')
+PREFIX = str(OUTDIR+FNAMES) # +{file no}.html
 
-if __name__ == '__main__':
+def main():
     for i in range(N_FILES):
         with open(f'{PREFIX}{i}.html', 'w') as F:
             txt = L_BEGIN
@@ -30,3 +32,8 @@ if __name__ == '__main__':
 
             F.write(txt + L_END)
             F.close()
+
+
+if __name__ == '__main__':
+    print(f'{WORDS_LEN} words in set, creating {N_FILES} files @ {OUTDIR}')
+    main()

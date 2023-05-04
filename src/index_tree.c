@@ -29,7 +29,6 @@
 
 typedef struct iword iword_t;
 typedef struct idocument idocument_t;
-typedef struct idocument_term idocument_term_t;
 
 
 /* Type of index */
@@ -50,13 +49,7 @@ struct iword {
 /* Type of indexed document */
 struct idocument {
     char  *path;
-    map_t *terms;   // {'char *word' => 'idocument_term_t *term'}
-};
-
-/* Type of term within indexed document */
-struct idocument_term {
-    iword_t  *iword;  // pointer to the indexed word, for word string & global frequency
-    int       freq;   // frequency of term within the parent document
+    map_t *terms;   // {'char *word' => 'int *freq'}
 };
 
 /* strcmp wrapper */
@@ -256,19 +249,20 @@ int index_addpath(index_t *index, char *path, list_t *tokens) {
             free(tok);
         }
 
-        /* update the existing document term, or create it if it's the first occurance */
-        idocument_term_t *term = map_get(doc->terms, iword->word);
-        if (!term) {
-            term = malloc(sizeof(idocument_term_t));
-            if (!term) {
-                // ERROR_PRINT("malloc failed\n");
+        /* check if word already has occured within the document */
+        int *freq = map_get(doc->terms, iword->word);
+
+        if (!freq) {
+            /* create a value entry for { word : freq } in the document map */
+            freq = malloc(sizeof(int));
+            if (!freq) {
                 return 0;
             }
-            term->freq = 1;
-            term->iword = iword;
-            map_put(doc->terms, iword->word, term);
+            *freq = 1;
+            map_put(doc->terms, iword->word, freq);
         } else {
-            term->freq++;
+            /* increment the frequency of the word */
+            *freq += 1;
         }
 
         /* add path to the indexed words set. */
@@ -320,16 +314,16 @@ static list_t *format_query_results(index_t *index, set_t *docs) {
         }
 
         /* Naive implementation of the tf-idf scoring algorithm.
-         * Cross references all search terms with terms in the result doc
+         * Cross references all search terms with terms in the result document
          */
         while (set_hasnext(qword_iter)) {
             iword_t *curr = set_next(qword_iter);
-            idocument_term_t *docterm = map_get(doc->terms, curr->word);
+            int *freq = map_get(doc->terms, curr->word);
 
-            if (docterm) {
-                /* Since doc has the term, it's a relevant term. Calculate tf-idf and add to score */
+            if (freq) {
+                /* document has the term. Calculate tf-idf and add to score */
                 idf = log(n_total_docs / (double)set_size(curr->in_docs));
-                q_result->score += (double)docterm->freq * idf;
+                q_result->score += (double)(*freq) * idf;
             }
             /* Notes:
              * 1) the doc will always get a score from this, as it cannot be here without a matching token

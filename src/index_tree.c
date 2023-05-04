@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
-#include <math.h>
+#include <math.h>   // included for log
 
 
 /******************************************************************************
@@ -36,7 +36,7 @@ struct index {
     set_t    *iwords;       // set of all indexed words
     iword_t  *iword_buf;    // buffer of one iword for searching and adding words
     parser_t *parser;
-    set_t    *query_words;  // temp set used to contain <word>'s currently being queried
+    set_t    *query_words;  // temp set used to contain <word>'s being parsed
     int       n_docs;
 };
 
@@ -299,7 +299,6 @@ static list_t *format_query_results(index_t *index, set_t *docs) {
     }
 
     double n_total_docs = (double)index->n_docs;
-    double idf;
 
     while (set_hasnext(docs_iter)) {
         query_result_t *q_result = malloc(sizeof(query_result_t));
@@ -318,12 +317,12 @@ static list_t *format_query_results(index_t *index, set_t *docs) {
          */
         while (set_hasnext(qword_iter)) {
             iword_t *curr = set_next(qword_iter);
-            int *freq = map_get(doc->terms, curr->word);
+            int *tf = map_get(doc->terms, curr->word);
 
-            if (freq) {
+            if (tf) {
                 /* document has the term. Calculate tf-idf and add to score */
-                idf = log(n_total_docs / (double)set_size(curr->in_docs));
-                q_result->score += (double)(*freq) * idf;
+                double idf = log(n_total_docs / (double)set_size(curr->in_docs));
+                q_result->score += (double)(*tf) * idf;
             }
             /* Notes:
              * 1) the doc will always get a score from this, as it cannot be here without a matching token
@@ -413,9 +412,4 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
     return ret_list;
 }
 
-
-
-// make clean && make assert_index && lldb assert_index
-// make clean && make indexer && ./indexer data/cacm/
 // sudo lsof -i -P | grep LISTEN | grep :$8080
-/* a OR b OR ((c) OR k OR (y OR l)) OR x OR (j) OR k OR (x OR y) OR j */

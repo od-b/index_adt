@@ -44,15 +44,6 @@ void *set_tryadd(set_t *set, void *elem);
  * performance by turning many operations into a single one. 
 */
 
-/* free set elems using the given function, e.g. free 
- * does not destroy the set itself.
- */
-void set_destroy_elems(set_t *set, void (*free_func)(void *));
-/* note:
- * avoid breaking trees that don't allow freeing elems while iterating,
- * and provide functionality for sets of structs, like sets of sets.
-*/
-
 /*
  * Creates a new set. The given cmpfunc will be used
  * to compare elements added to the set.

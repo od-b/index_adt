@@ -4,6 +4,7 @@
 #include "list.h"
 #include "set.h"
 
+
 /* Enumerated response codes */
 typedef enum parser_status {
     SKIP_PARSE,
@@ -11,7 +12,6 @@ typedef enum parser_status {
     ALLOC_FAILED,
     SYNTAX_ERROR,
 } parser_status_t;
-
 
 struct parser;
 /* Type of query parser */
@@ -22,6 +22,7 @@ typedef struct parser parser_t;
  * Such a func takes in a void and char pointer, and returns a set.
  */
 typedef set_t *(*search_func_t)(void *, char *);
+
 
 /*
  * Creates and returns a new parser.
@@ -43,16 +44,16 @@ void parser_destroy(parser_t *parser);
 parser_status_t parser_scan(parser_t *parser, list_t *tokens);
 
 /*
- * Returns the current error message of the parser
- */
-char *parser_get_errmsg(parser_t *parser);
-
-/*
  * Initializises the parsing process.
  * Will return NULL unless parser_scan_tokens is called prior to this.
  * Returns a newly created set containing any results. The set may be empty.
  */
 set_t *parser_get_result(parser_t *parser);
+
+/*
+ * Returns the current error message of the parser
+ */
+char *parser_get_errmsg(parser_t *parser);
 
 
 #endif

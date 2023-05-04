@@ -1,5 +1,5 @@
 /*
- * See .. README_queryparser.md 
+ * Basic documentation at ../docs/README_queryparser.md
  */
 
 #include "queryparser.h"
@@ -87,6 +87,7 @@ char *parser_get_errmsg(parser_t *parser) {
 }
 
 set_t *parser_get_result(parser_t *parser) {
+    /* initialize the process of node parsing */
     parser->leftmost = parse_node(parser->leftmost);
 
     if (!parser->leftmost->prod) {
@@ -179,13 +180,13 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
         } else if (strcmp(token, "ANDNOT") == 0) {
             node->type = OP_ANDNOT;
         } else {
-            /* token is a <word> */
+            /* terminable token */
             node->type = TERM;
             if (prev_nonpar && (prev_nonpar->type == TERM)) {
                 errmsg = "Adjacent terms";
             } else {
                 if (map_haskey(searched_words, token)) {
-                    /* Duplicate <word> within this query.
+                    /* Duplicate terminable within this query.
                     * Get result from map instead of searching set again. */
                     node->prod = map_get(searched_words, token);
                 } else {
@@ -239,6 +240,7 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
     if (errmsg) {
         /* print a formatted error message to the parsers errmsg buffer */
         if ((pile_size(tok_pile) > 2) && list_hasnext(tok_iter)) {
+            /* (╯°□°）╯︵ ┻━┻ */
             snprintf(parser->errmsg_buf, ERRMSG_MAXLEN,
                 "<br>Error around %s%s %s %s%s ~ %s.",
                 ((pile_size(tok_pile) > 3) ? ("[ ... ") : ("[")),
@@ -296,7 +298,7 @@ static qnode_t *parse_node(qnode_t *node) {
             } else if (node->left) {
                 return parse_node(node->left);
             } else {
-                /* Single node remaining, containing the final product. Return it. */
+                /* Single node remaining containing the final product. Return it. */
                 return node;
             }
         }

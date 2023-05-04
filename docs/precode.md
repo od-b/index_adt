@@ -1,29 +1,11 @@
 
-
-# Precode: Thoughts, Issues, Changes, Notes
-
-<!-- ## Thoughts:
-  * treeset.c and aatreeset.c being merged set/list implementations greatly limits the possibilites
-  of using several different type sets within one file.  
-    If set.h was renamed treeset.h, it would allow for a different mapset.c (etc) to exist within the same namespace.
-    The drawback of such a change would be reducing the abstraction level of the interface, however,
-    is this abstraction level more important than finding a suitable set implementation for the task?¨ -->
-
-# Changes:
-All commited changes to the precode.
-This list does not including makefile changes, or additions to common.c/h.
+# Precode Changes:
 
 ### General modifications that do not affect logic:  
   * Removed spaces between declaration and parameters for functions and defines that takes in parameters  
   * Added brackets to many loops and if-statements where i believe it makes the code more readable  
-  * Updated several inaccurate descriptions. E.g.; list_create.h, 
-  * Renamed linkedlist.c to doublylinkedlist.c for clarity
-
-### Misc:
-  * updated ERROR_PRINT && DEBUG_PRINT to include line number with message. Can be turned off by not defining LINE_PRINT.
 
 ### Logical or variable type changes / additions
-
   * Added 'set_put()' and 'set_get()' to set.h.
     These changes are done to allow sets of structs on a more abstract basis.
     Notes, examples and detailed reasoning below.

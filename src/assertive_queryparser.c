@@ -122,7 +122,7 @@ set_t *parser_get_result(parser_t *parser) {
 }
 
 parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
-    /* this function is more nested than i would like, but has a rather simple goal:
+    /* this function is fairly nested but has a straightforward goal:
      * Validate the syntax of tokens while 'converting' them into query nodes.
      * Terminate <words>, to detect if a search may yield results without further parsing.
      *

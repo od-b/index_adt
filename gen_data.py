@@ -1,10 +1,10 @@
-''' generates files containing random english words '''
+''' simple file generator containing random english words '''
 
 ##################### SETTINGS ######################
-OUTDIR = "./data/gcide/"
-N_FILES = 3
-N_WORDS = 512
-WORDS_PER_LINE = 8
+PREFIX = str("./data/gcide/gcide_") # +{i}.html
+N_FILES = int(3)
+N_WORDS = int(512)   # words per file
+LINE_WIDTH = int(8)  # words per line
 #######################################################
 
 from random import randint
@@ -15,18 +15,18 @@ WORDS = list(get_english_words_set(['gcide'], True, True))
 # https://pypi.org/project/english-words/
 
 WORDS_LEN = int(len(WORDS) - 1)
-N_LINES = int(N_WORDS / WORDS_PER_LINE)
+N_LINES = int(N_WORDS / LINE_WIDTH)
+L_BEGIN = str('<html> \n<pre> \n\n')
+L_END = str('\n</pre> \n</html> \n')
 
 if __name__ == '__main__':
     for i in range(N_FILES):
-        with open(f'{OUTDIR}gcide_{i}.html', 'w') as F:
-            txt = '<html> \n<pre> \n\n'
-
+        with open(f'{PREFIX}{i}.html', 'w') as F:
+            txt = L_BEGIN
             for _ in range(N_LINES):
-                for _ in range(WORDS_PER_LINE):
+                for _ in range(LINE_WIDTH):
                     txt += f'{WORDS[randint(0, WORDS_LEN)]} '
                 txt += '\n'
 
-            F.write(txt + '\n</pre> \n</html> \n')
+            F.write(txt + L_END)
             F.close()
-

@@ -67,6 +67,7 @@ if __name__ == '__main__':
         options.add_argument('--headless')
         options.add_argument('--disable-gpu')
 
+    # init the chromedriver
     driver = webdriver.Chrome(options=options, service=service)
     driver.get(HOST)
 
@@ -106,7 +107,7 @@ if __name__ == '__main__':
         search_box.clear()
         time.sleep(SLEEP_INTERVAL)
 
-    driver.quit()
+    driver.quit()	# terminate the chromedriver
 
     print("\nDone")
     if (TERMINATE_AFTER):

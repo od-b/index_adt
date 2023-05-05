@@ -1,13 +1,14 @@
 #! /bin/bash
 
-#! /bin/bash
-DATA_SRC=/home/odin/dumps/wiki/en/
-# ./indexer ${DATA_SRC} && python3 run_queries.py
-./indexer ${DATA_SRC}
 
+OUTDIR="1000x512"
+DATA_SRC=/home/odin/dumps/generated/
+
+./indexer ${DATA_SRC}
 sleep 1
 
-gprof -p indexer > prof_words/test.output
+gprof -p indexer > prof/${OUTDIR}/flat.output
+gprof -q indexer > prof/${OUTDIR}/graph.output
 
 # while [ $min_words -le $stop ] do
 #   i=0

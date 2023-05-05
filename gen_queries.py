@@ -9,9 +9,10 @@ from random import randint
 from english_words import get_english_words_set
 
 
-# import set of english dictionary words as a list
-# WORDS = list(get_english_words_set(['web2'], True, True))
 WORDS = list(get_english_words_set(['gcide'], True, True))
+# gcide => Words found in GNU Collaborative International Dictionary of English 0.53
+# https://pypi.org/project/english-words/
+
 WORDS_LEN = int(len(WORDS) - 1)
 
 def word():
@@ -34,4 +35,3 @@ if __name__ == '__main__':
 
             out.write(f'{txt}\n')
         out.close()
-

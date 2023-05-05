@@ -14,8 +14,8 @@ INCLUDE_DIR=include
 SRC_DIR=src
 
 # Binary targets
-# INDEXER=time_build
-INDEXER=indexer
+# INDEXER=indexer
+INDEXER=indexer_t
 ASSERT_INDEX=assert_index
 
 # Target source files

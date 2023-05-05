@@ -4,8 +4,6 @@
 
 #include "list.h"
 
-#define WORDS_LIMIT 100000000   /* TESTING */
-
 struct index;
 typedef struct index index_t;
 
@@ -32,7 +30,7 @@ void index_destroy(index_t *index);
  * NOTE: It is the responsibility of index_addpath() to deallocate (free)
  *       'path' and the contents of the 'words' list.
  */
-int index_addpath(index_t *index, char *path, list_t *tokens);    /* TESTING */
+void index_addpath(index_t *index, char *path, list_t *tokens);    /* TESTING */
 
 /*
  * Performs the given query on the given index.  If the query

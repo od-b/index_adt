@@ -18,11 +18,10 @@ struct parser;
 typedef struct parser parser_t;
 
 /*
- * Type of search_func, function pointer/reference.
- * Such a func takes in a void and char pointer, and returns a set.
+ * Type of search_func. Type of pointer to a function which
+ * takes in a void* and string, returning a set.
  */
 typedef set_t *(*search_func_t)(void *, char *);
-
 
 /*
  * Creates and returns a new parser.

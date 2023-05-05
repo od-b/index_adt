@@ -14,12 +14,13 @@ INCLUDE_DIR=include
 SRC_DIR=src
 
 # Binary targets
+# INDEXER=time_build
 INDEXER=indexer
 ASSERT_INDEX=assert_index
 
 # Target source files
-INDEXER_SRC=indexer.c common.c httpd.c $(LIST_SRC) $(MAP_SRC) $(SET_SRC) $(INDEX_SRC) $(PARSER_SRC)
-ASSERT_SRC=assert_index.c common.c $(LIST_SRC) $(MAP_SRC) $(SET_SRC) $(INDEX_SRC) $(PARSER_SRC)
+INDEXER_SRC=${INDEXER}.c common.c httpd.c $(LIST_SRC) $(MAP_SRC) $(SET_SRC) $(INDEX_SRC) $(PARSER_SRC)
+ASSERT_SRC=${ASSERT_INDEX}.c common.c $(LIST_SRC) $(MAP_SRC) $(SET_SRC) $(INDEX_SRC) $(PARSER_SRC)
 
 # Prefix the files with the src folder
 INDEXER_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(INDEXER_SRC))

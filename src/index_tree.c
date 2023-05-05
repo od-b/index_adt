@@ -195,27 +195,27 @@ void index_destroy(index_t *index) {
         n_freed_docs, n_freed_words);
 }
 
-int index_addpath(index_t *index, char *path, list_t *tokens) {
+void index_addpath(index_t *index, char *path, list_t *tokens) {
     /*
      * Not certain how a malloc failure should be handled, and especially
      * not within this functions, seeing as there's no return value.
     */
     if (list_size(tokens) == 0) {
         // DEBUG_PRINT("given path with no tokens: %s\n", path);
-        return 1;
+        return;
     }
 
     list_iter_t *tok_iter = list_createiter(tokens);
     idocument_t *doc = malloc(sizeof(idocument_t));
     if (!doc || !tok_iter) {
         // ERROR_PRINT("malloc failed\n");
-        return 0;
+        return;
     }
 
     doc->terms = map_create((cmpfunc_t)strcmp, hash_string);
     if (!doc->terms) {
         // ERROR_PRINT("malloc failed\n");
-        return 0;
+        return;
     }
 
     index->n_docs++;
@@ -234,14 +234,14 @@ int index_addpath(index_t *index, char *path, list_t *tokens) {
             iword->in_docs = set_create((cmpfunc_t)compare_idocs_by_path);
             if (!iword->in_docs) {
                 // ERROR_PRINT("malloc failed\n");
-                return 0;
+                return;
             }
 
             /* Since the search word was added, create a new iword for searching. */
             index->iword_buf = malloc(sizeof(iword_t));
             if (!index->iword_buf) {
                 // ERROR_PRINT("malloc failed\n");
-                return 0;
+                return;
             }
             index->iword_buf->in_docs = NULL;
         } else {
@@ -256,7 +256,7 @@ int index_addpath(index_t *index, char *path, list_t *tokens) {
             /* create a value entry for { word : freq } in the document map */
             freq = malloc(sizeof(int));
             if (!freq) {
-                return 0;
+                return;
             }
             *freq = 1;
             map_put(doc->terms, iword->word, freq);
@@ -271,11 +271,7 @@ int index_addpath(index_t *index, char *path, list_t *tokens) {
 
     list_destroyiter(tok_iter);
 
-    if (set_size(index->iwords) >= WORDS_LIMIT) {
-        printf("\nindex: docs = %d, unique words = %d\n", index->n_docs, set_size(index->iwords));
-        return 0;
-    }
-    return 1;
+    // printf("\nindex: docs = %d, unique words = %d\n", index->n_docs, set_size(index->iwords));
 }
 
 

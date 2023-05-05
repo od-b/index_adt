@@ -188,23 +188,17 @@ static list_t *preprocess_query(char *query) {
 }
 // static void send_results(FILE *f, char *query, list_t *results, unsigned long long *time) {
 
-static void send_results(FILE *f, char *query, list_t *results) {
+static void send_results(FILE *f, char *query, list_t *results, unsigned long long t_time) {
     char *tmp;
     list_iter_t *it;
 
     tmp = html_escape(query);
 
-    // const int n_results = list_size(results);
+    int n_results = list_size(results);
+    double ms_time = (float)(t_time) / 1000;
 
-    // double ms_time = (float)(*time) / 1000;
-    fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result(s) </h3>\n", tmp, list_size(results));
-    // if (!n_results) {
-    //     fprintf(f, "<hr/><h3>Your query for \"%s\" returned no results</h3>\n", tmp);
-    //     // printf("... in %.6fms\n", ms_time);
-    // } else {
-    //     fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result%s in %.3fms</h3>\n",
-    //         tmp, n_results, ((n_results > 1) ? ("s") : ("")), ms_time);
-    // }
+    fprintf(f, "<hr/><h3>Your query for \"%s\" returned %d result%s in %.3fms</h3>\n",
+        tmp, n_results, ((n_results > 1) ? ("s") : ("")), ms_time);
 
     free(tmp);
 
@@ -237,18 +231,12 @@ static void run_query(FILE *f, char *query) {
     if (!list_size(tokens))
         goto end;
 
-    // unsigned long long a_time = gettime();
-
-    // ProfilerStart("/tmp/en_100k.prof");
+    unsigned long long a_time = gettime();
 
     result = index_query(idx, tokens, &errmsg);
 
-    // ProfilerStop();
-
-    // unsigned long long b_time = (gettime() - a_time);
-
     if (result != NULL){
-        send_results(f, query, result);
+        send_results(f, query, result, (gettime() - a_time));
         list_destroy(result);
     } else {
         fprintf(f, "<hr/><h3>Error</h3>\n");
@@ -463,24 +451,21 @@ int main(int argc, char **argv) {
     iter = list_createiter(files);
 
     int progress = 0;
-    int status_ok = 1;
-    const int n_files = list_size(files);
-    printf("Found %d files in dir, indexing up to %d unique words\n", n_files, (int)WORDS_LIMIT);
+    printf("Found %d files in dir, indexing ...\n", list_size(files));
 
-    while (list_hasnext(iter) && status_ok) {
-        relpath = (char *)list_next(iter);
+    while (list_hasnext(iter)) {
+        relpath = list_next(iter);
         fullpath = concatenate_strings(2, root_dir, relpath);
 
-        if (progress % ADDPATH_PRINT_INTERVAL == 0) {
+        if (++progress % ADDPATH_PRINT_INTERVAL == 0) {
             printf("\rIndexing doc # %d", progress);
             fflush(stdout);
         }
-        progress++;
 
         words = list_create((cmpfunc_t)strcmp);
         tokenize_file(fullpath, words);
 
-        status_ok = index_addpath(idx, relpath, words);
+        index_addpath(idx, relpath, words);
 
         free(fullpath);
         list_destroy(words);

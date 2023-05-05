@@ -44,15 +44,17 @@ from english_words import get_english_words_set
 WORDS = list(get_english_words_set(['gcide'], True, True))
 WORDS_LEN = int(len(WORDS) - 1)
 
-# define operators
-OPERATORS = ["AND", "ANDNOT", "OR"]
-OPERATORS_LEN = int(len(OPERATORS) - 1)
-
 def word():
     return WORDS[randint(0, WORDS_LEN)]
 
 def operator():
-    return OPERATORS[randint(0, OPERATORS_LEN)]
+    match (randint(0, 2)):
+        case 0:
+            return "OR"
+        case 1:
+            return "AND"
+        case 2:
+            return "ANDNOT"
 
 def term():
     return f'({word()} {operator()} {word()})'

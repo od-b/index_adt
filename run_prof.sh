@@ -1,14 +1,20 @@
 #! /bin/bash
 
+IN_DIR=/home/odin/dumps/generated/
+OUT_DIR=prof/
 
-OUTDIR="1000x512"
-DATA_SRC=/home/odin/dumps/generated/
+N_FILES=1000
 
-./indexer ${DATA_SRC}
+
+a_time=$(date +%s.%N)
+
+./indexer ${IN_DIR}
+
+z_time="$(date +%s.%N) - $a_time" 
+
 sleep 1
 
-gprof -p indexer > prof/${OUTDIR}/flat.output
-gprof -q indexer > prof/${OUTDIR}/graph.output
+gprof -p indexer > ${OUT_DIR}/flat.output
 
 # while [ $min_words -le $stop ] do
 #   i=0

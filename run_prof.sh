@@ -1,14 +1,13 @@
 #! /bin/bash
 
-# ./time_build /home/odin/dumps/generated/ 300
 
-IN_DIR=/home/odin/dumps/generated/
-OUT_DIR=prof/
-
-./indexer ${IN_DIR}
+./time_build /home/odin/dumps/generated/ 300
 
 sleep 1
 
-gprof -p indexer > ${OUT_DIR}/flat.output
-gprof -q indexer > ${OUT_DIR}/graph.output
+gprof -p time_build > prof/flat.output
+
+sleep 1
+
+gprof -q time_build > prof/graph.output
 

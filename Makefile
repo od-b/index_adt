@@ -29,8 +29,9 @@ ASSERT_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(ASSERT_SRC))
 # Find all header files
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
-FLAGS = -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
+# FLAGS = -lm -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
 # FLAGS = -lm -O2 -Wno-unused-result -g -pg
+FLAGS = -lm -O2 -Wno-unused-result
 .PHONY=all
 
 all: $(INDEXER)

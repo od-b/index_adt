@@ -1,9 +1,9 @@
 ''' simple program to create html files containing random-ish english words '''
 
 ##################### SETTINGS ######################
-OUTDIR = "./data/gcide/"
+OUTDIR = "./generated/"
 FNAMES = "gcide_" #+{file no}.html
-N_FILES = int(3)
+N_FILES = int(300000)
 N_WORDS = int(512)   # words per file
 LINE_WIDTH = int(8)  # words per line
 #######################################################
@@ -37,3 +37,5 @@ def main():
 if __name__ == '__main__':
     print(f'{WORDS_LEN} words in set, creating {N_FILES} files @ {OUTDIR}')
     main()
+    print("done")
+

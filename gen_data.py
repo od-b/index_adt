@@ -3,7 +3,7 @@
 ##################### SETTINGS ######################
 OUTDIR = "./generated/"
 FNAMES = "gcide_" #+{file no}.html
-N_FILES = int(20)
+N_FILES = int(300001)
 N_WORDS = int(128)       # words&integers per file, 50/50 split
 LINE_WIDTH = int(8)      # words per line
 NUM_RANGE = int(300000)  # range of random integers inserted

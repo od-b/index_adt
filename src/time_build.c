@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <ctype.h>
 
-const char *F_WORDS = "64";
+const char *F_WORDS = "128";
 const char *OUT_DIR = "./prof/";
 
 /*

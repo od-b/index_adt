@@ -85,7 +85,7 @@ set_t *get_iword_docs(index_t *index, char *word) {
 }
 
 /* FOR TESTING */
-int get_n_words(index_t *index) {
+int index_n_words(index_t *index) {
     return set_size(index->iwords);
 }
 

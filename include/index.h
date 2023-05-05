@@ -33,7 +33,7 @@ void index_destroy(index_t *index);
 void index_addpath(index_t *index, char *path, list_t *tokens);    /* TESTING */
 
 /* FOR TESTING */
-int get_n_words(index_t *index);
+int index_n_words(index_t *index);
 
 /*
  * Performs the given query on the given index.  If the query

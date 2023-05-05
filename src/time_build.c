@@ -9,18 +9,16 @@ const char *F_WORDS = "512";
 const char *OUT_DIR = "./prof/";
 
 /*
- * Stripped indexer.c for testing build times.
- * Doesn't clean up index or file list but os will
- * reclaim it on exit anyhow.
+ * Stripped indexer.c for testing build times
+ * Doesn't clean up index or file list but os will reclaim it on exit anyhow.
  * 
  * No code within this file should be considered original work.
  * Refer to indexer.c for authors.
  * 
 */
 
-static void print_to_csv(FILE *f, int n_indexed_files, long long unsigned t_time) {
-    /* n = files indexed, time spent @ last 1000 */
-    fprintf(f, "%d, %.0f\n", n_indexed_files, ((float)(t_time) / 1000));
+static void print_to_csv(FILE *f, int n, long long unsigned t_time) {
+    fprintf(f, "%d, %.0f\n", n, ((float)(t_time) / 1000));
 }
 
 int main(int argc, char **argv) {
@@ -35,7 +33,7 @@ int main(int argc, char **argv) {
     }
 
     root_dir = argv[1];
-    const int n_files = atoi(argv[2]);
+    const int n_files = atoi(argv[2]) * 1000;
 
     if (n_files <= 0) {
         printf("invalid file count\n");
@@ -62,23 +60,32 @@ int main(int argc, char **argv) {
     int progress = 0;
     printf("Found %d files in dir, indexing up to %d\n", list_size(files), n_files);
 
-    char *fname = concatenate_strings(5, OUT_DIR, argv[2], "x", F_WORDS, ".csv");
-    FILE *f = fopen(fname, "w");
-    free(fname);
+    char *fpath_files = concatenate_strings(6, OUT_DIR, "files_", argv[2], "x", F_WORDS, ".csv");
+    char *fpath_words = concatenate_strings(6, OUT_DIR, "words_", argv[2], "x", F_WORDS, ".csv");
+
+    FILE *f_files = fopen(fpath_files, "w");
+    FILE *f_words = fopen(fpath_words, "w");
+
+    free(fpath_files);
+    free(fpath_words);
 
     unsigned long long cum_time = 0;
-    unsigned long long time_a = gettime();
-    unsigned long long time_z;
+    unsigned long long seg_start = gettime();
+    unsigned long long seg_time;
 
-    while (list_hasnext(iter) && (++progress < n_files)) {
-        if (progress % 1000 == 0) {
-            time_z = (gettime() - time_a);
-            print_to_csv(f, progress, time_z);
+    while (list_hasnext(iter) && (progress < n_files)) {
+        if (++progress % 1000 == 0) {
+            seg_time = (gettime() - seg_start);
+            cum_time += seg_time;
+
+            print_to_csv(f_files, progress, seg_time);   // n = files
+            print_to_csv(f_words, index_n_words(idx), seg_time);  // n = unique words
 
             printf("\rIndexing doc # %d", progress);
             fflush(stdout);
-            cum_time += time_z;
-            time_a = gettime();
+
+            /* get time again to ignore any time spent printing */
+            seg_start = gettime();
         }
 
         relpath = list_next(iter);

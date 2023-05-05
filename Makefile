@@ -15,7 +15,7 @@ SRC_DIR=src
 
 # Binary targets
 # INDEXER=indexer
-INDEXER=indexer_t
+INDEXER=time_build
 ASSERT_INDEX=assert_index
 
 # Target source files

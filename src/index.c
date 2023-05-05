@@ -84,11 +84,6 @@ set_t *get_iword_docs(index_t *index, char *word) {
     return NULL;
 }
 
-/* FOR TESTING */
-int index_n_words(index_t *index) {
-    return set_size(index->iwords);
-}
-
 /******************************************************************************
  *                                                                            *
  *            Section 1: Index Creation, Building, Destruction                *
@@ -304,6 +299,7 @@ static list_t *format_query_results(index_t *index, set_t *docs) {
         query_result_t *q_result = malloc(sizeof(query_result_t));
         idocument_t *doc = set_next(docs_iter);
 
+        /* create iter for the set of query words */
         set_iter_t *qword_iter = set_createiter(index->query_words);
         if (!qword_iter || !q_result) {
             if (q_result) {
@@ -409,6 +405,8 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
     if (index->query_words) {
         set_destroy(index->query_words);
     }
+
+    /* ret_list will be NULL on error */
     return ret_list;
 }
 

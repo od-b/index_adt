@@ -61,13 +61,13 @@ int main(int argc, char **argv) {
     printf("Found %d files in dir, indexing up to %d\n", list_size(files), n_files);
 
     char *fpath_files = concatenate_strings(6, OUT_DIR, "files_", argv[2], "x", F_WORDS, ".csv");
-    char *fpath_words = concatenate_strings(6, OUT_DIR, "words_", argv[2], "x", F_WORDS, ".csv");
+    // char *fpath_words = concatenate_strings(6, OUT_DIR, "words_", argv[2], "x", F_WORDS, ".csv");
 
     FILE *f_files = fopen(fpath_files, "w");
-    FILE *f_words = fopen(fpath_words, "w");
+    // FILE *f_words = fopen(fpath_words, "w");
 
     free(fpath_files);
-    free(fpath_words);
+    // free(fpath_words);
 
     unsigned long long cum_time = 0;
     unsigned long long seg_start = gettime();
@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
             cum_time += seg_time;
 
             print_to_csv(f_files, progress, seg_time);   // n = files
-            print_to_csv(f_words, index_n_words(idx), seg_time);  // n = unique words
+            // print_to_csv(f_words, index_n_words(idx), seg_time);  // n = unique words
 
             printf("\rIndexing doc # %d", progress);
             fflush(stdout);

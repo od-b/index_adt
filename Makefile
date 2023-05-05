@@ -5,7 +5,7 @@
 LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
 SET_SRC=aatreeset.c
-INDEX_SRC=index_tree.c
+INDEX_SRC=index.c
 PARSER_SRC=queryparser.c pile.c
 # PARSER_SRC=assertive_queryparser.c pile.c
 
@@ -14,8 +14,8 @@ INCLUDE_DIR=include
 SRC_DIR=src
 
 # Binary targets
-# INDEXER=indexer
-INDEXER=time_build
+INDEXER=indexer
+# INDEXER=time_build
 ASSERT_INDEX=assert_index
 
 # Target source files

@@ -30,7 +30,7 @@ ASSERT_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(ASSERT_SRC))
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
 # FLAGS = -lm -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
-FLAGS = -lm -O2 -Wno-unused-result -g -pg
+FLAGS = -lm -O2 -Wno-unused-result
 .PHONY=all
 
 all: $(INDEXER)

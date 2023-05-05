@@ -14,9 +14,15 @@ WORDS = list(get_english_words_set(['gcide'], True, True))
 # https://pypi.org/project/english-words/
 
 WORDS_LEN = int(len(WORDS) - 1)
+NUM_RANGE = int(300000)  # range of random integers inserted
 
 def word():
-    return WORDS[randint(0, WORDS_LEN)]
+    match (randint(0, 1)):
+        case 0:
+            return WORDS[randint(0, WORDS_LEN)]
+        case 1:
+            return str(randint(0, NUM_RANGE))
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 4:

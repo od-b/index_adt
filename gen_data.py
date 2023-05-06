@@ -1,12 +1,16 @@
-''' simple program to create html files containing random-ish english words '''
+''' simple program to create html files containing random-ish english words 
+
+    to simulate a variance in number of duplicate words, random numbers are inserted.
+    the range of numbers will gradually increase by 2 * No. generated files.
+    e.g. the first file will only contain 0 as numbers, the second 0 | 1 | 2, asf.
+'''
 
 ##################### SETTINGS ######################
 OUTDIR = "./generated/"
 FNAMES = "gcide_" #+{file no}.html
-N_FILES = int(300001)
+N_FILES = int(20)
 N_WORDS = int(128)       # words&integers per file, 50/50 split
 LINE_WIDTH = int(8)      # words per line
-NUM_RANGE = int(300000)  # range of random integers inserted
 #######################################################
 
 from random import randint
@@ -22,6 +26,7 @@ L_BEGIN = str('<html> \n<pre> \n\n')
 L_END = str('\n</pre> \n</html> \n')
 PREFIX = str(OUTDIR+FNAMES) # +{file no}.html
 
+
 def main():
     for i in range(N_FILES):
         with open(f'{PREFIX}{i}.html', 'w') as F:
@@ -31,7 +36,7 @@ def main():
                     txt += f'{WORDS[randint(0, WORDS_LEN)]} '
                 txt += '\n'
                 for _ in range(LINE_WIDTH):
-                    txt += f'{randint(0, NUM_RANGE)} '
+                    txt += f'{randint(0, i*2)} '
                 txt += '\n'
 
             F.write(txt + L_END)

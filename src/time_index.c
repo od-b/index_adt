@@ -37,7 +37,7 @@
 #include <stdio.h>
 #include <ctype.h>
 
-const char *F_WORDS = "128";
+const char *F_WORDS = "64";
 const char *OUT_DIR = "./prof/";
 
 
@@ -326,7 +326,7 @@ static void init_timed_queries(index_t *idx, char *query_src, char *str_n_querie
     /* load queries from csv */
     FILE *csv_in = fopen(query_src, "r");
     if (!csv_in) {
-        printf("failed to open query src\n");
+        printf("ERROR: failed to open query src\n");
         return;
     }
 
@@ -387,13 +387,13 @@ int main(int argc, char **argv) {
     const int n_files = atoi(k_files) * 1000;
 
     if (n_files <= 0) {
-        printf("invalid file count\n");
+        printf("ERROR: invalid file count\n");
         return 1;
     }
 
     /* Check that root_dir exists and is directory */
     if (!is_valid_directory(root_dir)) {
-        printf("invalid root_dir\n");
+        printf("ERROR: invalid root_dir\n");
         return 1;
     }
 
@@ -402,14 +402,19 @@ int main(int argc, char **argv) {
     files = find_files(root_dir);
     idx = index_create();
     if (!idx) { 
-        printf("Failed to create index\n");
+        printf("ERROR: Failed to create index\n");
         return 1;
     }
 
     /* create & open csv for build time */
-    char *out_path = concatenate_strings(6, OUT_DIR, "build_", k_files, "x", F_WORDS, ".csv");
-    FILE *csv_out = fopen(out_path, "w");
-    free(out_path);
+    char *out_path_nfiles = concatenate_strings(6, OUT_DIR, "build_nfiles_", k_files, "x", F_WORDS, ".csv");
+    FILE *csv_nfiles = fopen(out_path_nfiles, "w");
+    free(out_path_nfiles);
+
+    /* create & open csv for build time */
+    char *out_path_nwords = concatenate_strings(6, OUT_DIR, "build_nwords_", k_files, "x", F_WORDS, ".csv");
+    FILE *csv_nwords = fopen(out_path_nwords, "w");
+    free(out_path_nwords);
 
     /* build time variables */
     cum_time = 0;
@@ -420,12 +425,12 @@ int main(int argc, char **argv) {
     iter = list_createiter(files);
 
     while (list_hasnext(iter) && (progress < n_files)) {
-        if (++progress % 1000 == 0) {
+        if (++progress % 500 == 0) {
             seg_time = (gettime() - seg_start);
             cum_time += seg_time;
 
-            print_to_csv(csv_out, progress, seg_time);   // n = files
-            // print_to_csv(f_words, index_n_words(idx), seg_time);  // n = unique words
+            print_to_csv(csv_nfiles, progress, seg_time);   // n = files
+            print_to_csv(csv_nwords, index_uniquewords(idx), seg_time);  // n = unique words
 
             printf("\rIndexing doc # %d", progress);
             fflush(stdout);

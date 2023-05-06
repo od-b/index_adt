@@ -9,7 +9,7 @@
 OUTDIR = "./generated/"
 FNAMES = "gcide_" #+{file no}.html
 N_FILES = int(20)
-N_WORDS = int(128)       # words&integers per file, 50/50 split
+N_WORDS = int(64)       # words&integers per file, 50/50 split
 LINE_WIDTH = int(8)      # words per line
 #######################################################
 

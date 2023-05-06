@@ -84,6 +84,11 @@ set_t *get_iword_docs(index_t *index, char *word) {
     return NULL;
 }
 
+/* TESTFUNC */
+int index_uniquewords(index_t *index) {
+    return set_size(index->iwords);
+}
+
 /******************************************************************************
  *                                                                            *
  *            Section 1: Index Creation, Building, Destruction                *

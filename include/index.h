@@ -18,6 +18,9 @@ typedef struct query_result {
  */
 index_t *index_create();
 
+/* TESTFUNC */
+int index_uniquewords(index_t *index);
+
 /*
  * Destroys the given index.  Subsequently accessing the index will
  * lead to undefined behavior.

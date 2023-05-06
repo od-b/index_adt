@@ -1,8 +1,9 @@
 ''' simple program to create html files containing random-ish english words 
 
     to simulate a variance in number of duplicate words, random numbers are inserted.
-    the range of numbers will gradually increase by 2 * No. generated files.
+    the range of numbers will gradually increase by x * No. generated files.
     e.g. the first file will only contain 0 as numbers, the second 0 | 1 | 2, asf.
+    same number range for all N_FILES, see the 'MULTI' constant.
 '''
 
 ##################### SETTINGS ######################
@@ -10,7 +11,8 @@ OUTDIR = "./generated/"
 FNAMES = "gcide_" #+{file no}.html
 N_FILES = int(20)
 N_WORDS = int(64)       # words&integers per file, 50/50 split
-LINE_WIDTH = int(8)      # words per line
+LINE_WIDTH = int(8)     # words per line
+MAX_FILES = 800000      # defined max upper bound
 #######################################################
 
 from random import randint
@@ -25,7 +27,7 @@ N_LINES = int(N_WORDS / LINE_WIDTH)
 L_BEGIN = str('<html> \n<pre> \n\n')
 L_END = str('\n</pre> \n</html> \n')
 PREFIX = str(OUTDIR+FNAMES) # +{file no}.html
-
+MULTI = int((2 * MAX_FILES) / N_FILES)
 
 def main():
     for i in range(N_FILES):
@@ -36,7 +38,7 @@ def main():
                     txt += f'{WORDS[randint(0, WORDS_LEN)]} '
                 txt += '\n'
                 for _ in range(LINE_WIDTH):
-                    txt += f'{randint(0, i*2)} '
+                    txt += f'{randint(0, i*MULTI)} '
                 txt += '\n'
 
             F.write(txt + L_END)

@@ -14,7 +14,6 @@ INCLUDE_DIR=include
 SRC_DIR=src
 
 # Binary targets
-# INDEXER=indexer
 INDEXER=indexer
 ASSERT_INDEX=assert_index
 TIME_INDEX=time_index
@@ -33,7 +32,7 @@ TIME_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(TIME_SRC))
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
 # FLAGS = -lm -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
-FLAGS = -lm -Wno-unused-result #-g -pg 
+FLAGS = -O2 -lm -Wno-unused-result #-g -pg 
 .PHONY=all
 
 all: $(TIME_INDEX)
@@ -48,5 +47,5 @@ $(TIME_INDEX): $(TIME_SRC) $(HEADERS) Makefile
 	gcc -o $@ $(TIME_SRC) -I$(INCLUDE_DIR) $(FLAGS)
 
 clean:
-	rm -f *~ *.o *.exe *.out *.prof *.stackdump $(INDEXER) $(ASSERT_INDEX) ${TIME_INDEX}
+	rm -f *~ *.o *.exe *.out *.prof *.stackdump $(INDEXER) $(ASSERT_INDEX) $(TIME_INDEX)
 	rm -rf *.dSYM

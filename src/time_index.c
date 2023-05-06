@@ -37,7 +37,7 @@
 #include <stdio.h>
 #include <ctype.h>
 
-const char *F_WORDS = "256";
+const char *F_WORDS = "128";
 const char *OUT_DIR = "./prof/";
 
 
@@ -425,7 +425,7 @@ int main(int argc, char **argv) {
     iter = list_createiter(files);
 
     while (list_hasnext(iter) && (progress < n_files)) {
-        if (++progress % 1000 == 0) {
+        if (++progress % 500 == 0) {
             seg_time = (gettime() - seg_start);
             cum_time += seg_time;
 

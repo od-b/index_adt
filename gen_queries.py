@@ -35,9 +35,9 @@ if __name__ == '__main__':
 
     with open(f'./{outfile}', 'a+') as out:
         for _ in range(n_queries):
-            txt = f'({word()} AND {word()}) ANDNOT ({word()} OR {word()})'
+            txt = f' ( {word()} AND {word()} ) ANDNOT ( {word()} OR {word()} ) '
             for _ in range(query_len-1):
-                txt += f' OR (({word()} AND {word()}) ANDNOT ({word()} OR {word()}))'
+                txt += f' OR ( ( {word()} AND {word()} ) ANDNOT ( {word()} OR {word()} ) ) '
 
             out.write(f'{txt}\n')
         out.close()

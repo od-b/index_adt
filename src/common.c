@@ -21,10 +21,6 @@
 #include <sys/time.h>
 #include <ctype.h>
 
-
-
-/* --- PRECODE --- */
-
 void tokenize_file(const char *filename, list_t *list) {
     FILE *fp;
     char *c, *word;

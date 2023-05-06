@@ -37,7 +37,7 @@
 #include <stdio.h>
 #include <ctype.h>
 
-const char *F_WORDS = "256";
+const char *F_WORDS = "64";
 const char *OUT_DIR = "./prof/";
 
 
@@ -406,10 +406,15 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    /* create & open csv for build time */
-    char *out_path = concatenate_strings(6, OUT_DIR, "build_", k_files, "x", F_WORDS, ".csv");
-    FILE *csv_out = fopen(out_path, "w");
-    free(out_path);
+    /* create & open csvs for build time */
+
+    char *outpath_nfiles = concatenate_strings(6, OUT_DIR, "build_nfiles_", k_files, "x", F_WORDS, ".csv");
+    FILE *csv_nfiles = fopen(outpath_nfiles, "w");
+    free(outpath_nfiles);
+
+    char *outpath_nwords = concatenate_strings(6, OUT_DIR, "build_nwords_", k_files, "x", F_WORDS, ".csv");
+    FILE *csv_nwords = fopen(outpath_nwords, "w");
+    free(outpath_nwords);
 
     /* build time variables */
     cum_time = 0;
@@ -424,8 +429,8 @@ int main(int argc, char **argv) {
             seg_time = (gettime() - seg_start);
             cum_time += seg_time;
 
-            print_to_csv(csv_out, progress, seg_time);   // n = files
-            // print_to_csv(f_words, index_n_words(idx), seg_time);  // n = unique words
+            print_to_csv(csv_nfiles, progress, seg_time);   // n = files
+            print_to_csv(csv_nwords, index_uniquewords(idx), seg_time);  // n = unique words
 
             printf("\rIndexing doc # %d", progress);
             fflush(stdout);
@@ -449,7 +454,7 @@ int main(int argc, char **argv) {
     printf("\nDone indexing %d docs\n", progress);
     printf("Cumulative build time: %.0fms\n", ((float)(cum_time) / 1000));
 
-    init_timed_queries(idx, query_src, argv[4], k_files);
+    // init_timed_queries(idx, query_src, argv[4], k_files);
 
     printf("[test_index]: Done, exiting\n");
 

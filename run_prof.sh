@@ -1,6 +1,6 @@
 #! /bin/bash
 
-./time_index /home/odin/dumps/generated/ 4 queries.csv 40
+./time_index /home/odin/dumps/generated/ 800 queries.csv 100
 
 sleep 1
 

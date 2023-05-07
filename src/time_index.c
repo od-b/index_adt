@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <time.h>
 
 static const char *TEST_ID = "MIX";
 static const char *OUT_DIR = "./prof/";
@@ -195,8 +196,7 @@ typedef struct query_time {
 } query_time_t;
 
 int compare_rand(void *a, void *b) {
-    int r = rand() % 3;
-    switch (r) {
+    switch ((rand() % 3)) {
         case (0):
             return -1;
         case (1):
@@ -378,6 +378,13 @@ static void init_timed_queries(index_t *idx, char *query_src, char *str_n_querie
  * ./profile_index data/cacm/ 1 queries.csv 20
  */
 int main(int argc, char **argv) {
+    if (argc != 5) {
+        /* queries are read separated by newlines, regardless of source format 
+        * k_ values are given in thousands */
+        printf("usage: indexer <dir> <k_files> <query_src> <k_queries>\n");
+        return 1;
+    }
+
     char *relpath, *fullpath, *root_dir, *query_src, *k_files;
     unsigned long long cum_time, seg_start, seg_time;
     list_t *files, *words;
@@ -385,14 +392,6 @@ int main(int argc, char **argv) {
     index_t *idx;
 
     srand(time(NULL));
-
-    /* queries are read separated by newlines, regardless of source format 
-     * k_ values are given in thousands
-    */
-    if (argc != 5) {
-        printf("usage: indexer <dir> <k_files> <query_src> <k_queries>\n");
-        return 1;
-    }
 
     root_dir = argv[1];
     k_files = argv[2];
@@ -414,6 +413,18 @@ int main(int argc, char **argv) {
     printf("\nFinding files at %s \n", root_dir);
 
     files = find_files(root_dir);
+
+    /* shuffle the files */
+    list_t *tmp = list_create(compare_rand);
+    list_iter_t *files_iter = list_createiter(files);
+
+    while (list_hasnext(files_iter)) {
+        list_addlast(tmp, list_next(files_iter));
+    }
+    list_destroyiter(files_iter);
+    list_destroy(files);
+    files = tmp;
+
     idx = index_create();
     if (!idx) { 
         printf("ERROR: Failed to create index\n");

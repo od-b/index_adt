@@ -174,7 +174,7 @@ struct list *find_files(const char *root_dir) {
     }
     chdir(root_dir);
 
-    files = list_create((cmpfunc_t) strcmp);
+    files = list_create((cmpfunc_t)strcmp);
     if (!files) {
         goto end;
     }

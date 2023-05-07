@@ -5,8 +5,8 @@
 LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
 SET_SRC=aatreeset.c
-# INDEX_SRC=index_rb.c rbtree.c
-INDEX_SRC=index_aa.c
+# INDEX_SRC=index_aa.c
+INDEX_SRC=index_rb.c rbtree.c
 PARSER_SRC=queryparser.c pile.c
 # PARSER_SRC=assertive_queryparser.c pile.c
 
@@ -32,8 +32,8 @@ TIME_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(TIME_SRC))
 # Find all header files
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
-FLAGS = -lm -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
-# FLAGS = -O2 -lm -Wno-unused-result -g -pg 
+# FLAGS = -lm -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
+FLAGS = -O2 -lm -Wno-unused-result -g -pg 
 .PHONY=all
 
 all: $(TIME_INDEX)

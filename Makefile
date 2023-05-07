@@ -32,7 +32,7 @@ TIME_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(TIME_SRC))
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
 # FLAGS = -lm -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
-FLAGS = -O2 -lm -Wno-unused-result #-g -pg 
+FLAGS = -O2 -lm -Wno-unused-result -g -pg 
 .PHONY=all
 
 all: $(TIME_INDEX)

@@ -37,8 +37,10 @@
 #include <stdio.h>
 #include <ctype.h>
 
-const char *F_WORDS = "128";
-const char *OUT_DIR = "./prof/";
+static const char *TEST_ID = "MIX";
+static const char *OUT_DIR = "./prof/";
+
+#define QUERY_MAXLEN 3000
 
 
 /*
@@ -218,8 +220,8 @@ static list_t *load_queries(FILE *csv_in, int n_queries) {
 
     /* read queries from file and feed them to the index */
     while (!feof(csv_in) && (count++ < n_queries)) {
-        char query[1401];
-        query[1400] = 0;
+        char query[(size_t)QUERY_MAXLEN];
+        query[(size_t)QUERY_MAXLEN - 1] = 0;
 
         /* scan until first newline */
         if (fscanf(csv_in, "%[^\n]", query) != 1) {
@@ -238,7 +240,6 @@ static list_t *load_queries(FILE *csv_in, int n_queries) {
 
 /* feed queries to the index */
 static list_t *run_queries(index_t *idx, list_t *queries) {
-    int count = 0;
     int n_queries = list_size(queries);
     int n_errors = 0;
     char *errmsg;
@@ -326,7 +327,7 @@ static void init_timed_queries(index_t *idx, char *query_src, char *str_n_querie
     /* load queries from csv */
     FILE *csv_in = fopen(query_src, "r");
     if (!csv_in) {
-        printf("failed to open query src\n");
+        perror("failed to open query src");
         return;
     }
 
@@ -345,12 +346,12 @@ static void init_timed_queries(index_t *idx, char *query_src, char *str_n_querie
     /* create & open csv docs */
 
     /* file to print time from n tokens in query */
-    char *out_n_toks = concatenate_strings(6, OUT_DIR, "q_ntokens_", str_n_queries, "x", k_files, ".csv");
+    char *out_n_toks = concatenate_strings(4, OUT_DIR, "q_ntokens_", TEST_ID, ".csv");
     FILE *csv_ntokens = fopen(out_n_toks, "w");
     free(out_n_toks);
 
     /* file to print time from n results of a query */
-    char *out_n_results = concatenate_strings(6, OUT_DIR, "q_nresults_", str_n_queries, "x", k_files, ".csv");
+    char *out_n_results = concatenate_strings(4, OUT_DIR, "q_nresults_", TEST_ID, ".csv");
     FILE *csv_nresults = fopen(out_n_results, "w");
     free(out_n_results);
 
@@ -387,13 +388,13 @@ int main(int argc, char **argv) {
     const int n_files = atoi(k_files) * 1000;
 
     if (n_files <= 0) {
-        printf("invalid file count\n");
+        printf("ERROR: invalid file count\n");
         return 1;
     }
 
     /* Check that root_dir exists and is directory */
     if (!is_valid_directory(root_dir)) {
-        printf("invalid root_dir\n");
+        printf("ERROR: invalid root_dir '%s'\n", root_dir);
         return 1;
     }
 
@@ -402,17 +403,17 @@ int main(int argc, char **argv) {
     files = find_files(root_dir);
     idx = index_create();
     if (!idx) { 
-        printf("Failed to create index\n");
+        printf("ERROR: Failed to create index\n");
         return 1;
     }
 
     /* create & open csvs for build time */
 
-    char *outpath_nfiles = concatenate_strings(6, OUT_DIR, "build_nfiles_", k_files, "x", F_WORDS, ".csv");
+    char *outpath_nfiles = concatenate_strings(4, OUT_DIR, "build_nfiles_", TEST_ID, ".csv");
     FILE *csv_nfiles = fopen(outpath_nfiles, "w");
     free(outpath_nfiles);
 
-    char *outpath_nwords = concatenate_strings(6, OUT_DIR, "build_nwords_", k_files, "x", F_WORDS, ".csv");
+    char *outpath_nwords = concatenate_strings(4, OUT_DIR, "build_nwords_", TEST_ID, ".csv");
     FILE *csv_nwords = fopen(outpath_nwords, "w");
     free(outpath_nwords);
 
@@ -454,9 +455,9 @@ int main(int argc, char **argv) {
     printf("\nDone indexing %d docs\n", progress);
     printf("Cumulative build time: %.0fms\n", ((float)(cum_time) / 1000));
 
-    // init_timed_queries(idx, query_src, argv[4], k_files);
+    init_timed_queries(idx, query_src, argv[4], k_files);
 
-    printf("[test_index]: Done, exiting\n");
+    printf("test_index done -- terminating\n");
 
     return 0;
 }

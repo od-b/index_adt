@@ -5,7 +5,7 @@
 LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
 SET_SRC=aatreeset.c
-INDEX_SRC=index.c
+INDEX_SRC=index.c tree.c
 PARSER_SRC=queryparser.c pile.c
 # PARSER_SRC=assertive_queryparser.c pile.c
 

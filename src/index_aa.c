@@ -109,17 +109,17 @@ index_t *index_create() {
     }
 
     index->iword_buf = malloc(sizeof(iword_t));
-    if (!index->iwords) {
+    if (!index->iword_buf) {
+        set_destroy(index->iwords);
         free(index);
-        free(index->iwords);
         return NULL;
     }
 
     index->parser = parser_create((void *)index, (search_func_t)get_iword_docs);
     if (!index->parser) {
-        free(index);
-        free(index->iwords);
+        set_destroy(index->iwords);
         free(index->iword_buf);
+        free(index);
         return NULL;
     }
     index->iword_buf->word = NULL;

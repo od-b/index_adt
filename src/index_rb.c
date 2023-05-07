@@ -151,7 +151,7 @@ void index_destroy(index_t *index) {
 
     /* free the set of indexed words while creating a joint set of documents. */
     while (tree_hasnext(iword_iter)) {
-        iword_t *curr = set_next(iword_iter);
+        iword_t *curr = tree_next(iword_iter);
         set_iter_t *doc_iter = set_createiter(curr->in_docs);
         if (!doc_iter) {
             // ERROR_PRINT("failed to allocate memory\n");

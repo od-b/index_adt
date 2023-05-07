@@ -33,7 +33,7 @@ typedef struct idocument idocument_t;
 
 /* Type of index */
 struct index {
-    set_t    *iwords;       // set of all indexed words
+    set_t    *indexed_words;       // set of all indexed words
     iword_t  *iword_buf;    // buffer of one iword for searching and adding words
     parser_t *parser;
     set_t    *query_words;  // temp set used to contain <word>'s being parsed
@@ -75,7 +75,7 @@ int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
 /* used by the parser to search within the index. */
 set_t *get_iword_docs(index_t *index, char *word) {
     index->iword_buf->word = word;
-    iword_t *result = set_get(index->iwords, index->iword_buf);
+    iword_t *result = set_get(index->indexed_words, index->iword_buf);
 
     if (result) {
         set_add(index->query_words, result);
@@ -86,7 +86,7 @@ set_t *get_iword_docs(index_t *index, char *word) {
 
 /* TESTFUNC */
 int index_uniquewords(index_t *index) {
-    return set_size(index->iwords);
+    return set_size(index->indexed_words);
 }
 
 /******************************************************************************
@@ -102,22 +102,22 @@ index_t *index_create() {
     }
 
     /* create the 'core' index set to contain iwords */
-    index->iwords = set_create((cmpfunc_t)strcmp_iwords);
-    if (!index->iwords) {
+    index->indexed_words = set_create((cmpfunc_t)strcmp_iwords);
+    if (!index->indexed_words) {
         free(index);
         return NULL;
     }
 
     index->iword_buf = malloc(sizeof(iword_t));
     if (!index->iword_buf) {
-        set_destroy(index->iwords);
+        set_destroy(index->indexed_words);
         free(index);
         return NULL;
     }
 
     index->parser = parser_create((void *)index, (search_func_t)get_iword_docs);
     if (!index->parser) {
-        set_destroy(index->iwords);
+        set_destroy(index->indexed_words);
         free(index->iword_buf);
         free(index);
         return NULL;
@@ -141,7 +141,7 @@ void index_destroy(index_t *index) {
      * such as double free or potentially dismembering trees.
      */
     set_t *all_docs = set_create(compare_pointers);
-    set_iter_t *iword_iter = set_createiter(index->iwords);
+    set_iter_t *iword_iter = set_createiter(index->indexed_words);
 
     if (!all_docs || !iword_iter) {
         // ERROR_PRINT("failed to allocate memory\n");
@@ -170,7 +170,7 @@ void index_destroy(index_t *index) {
         n_freed_words++;
     }
     set_destroyiter(iword_iter);
-    set_destroy(index->iwords);
+    set_destroy(index->indexed_words);
 
     set_iter_t *all_docs_iter = set_createiter(all_docs);
     if (!all_docs_iter) {
@@ -230,7 +230,7 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
 
         /* try to add the word to the index, using word_buf to allow comparison */
         index->iword_buf->word = tok;
-        iword_t *iword = set_tryadd(index->iwords, index->iword_buf);
+        iword_t *iword = set_tryadd(index->indexed_words, index->iword_buf);
 
         if (iword == index->iword_buf) {
             /* first index entry for this word. initialize it as an indexed word. */

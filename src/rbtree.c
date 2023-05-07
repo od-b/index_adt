@@ -41,10 +41,9 @@ tree_t *tree_create(cmpfunc_t cmpfunc) {
     tree_t *new_tree = malloc(sizeof(tree_t));
     treenode_t *sentinel = malloc(sizeof(treenode_t));
     if (new_tree == NULL || sentinel == NULL) {
-        ERROR_PRINT("out of memory\n");
         return NULL;
     }
-    
+
     /* create the sentinel */
     sentinel->left = NULL;
     sentinel->right = NULL;

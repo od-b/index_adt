@@ -195,16 +195,16 @@ typedef struct query_time {
     unsigned long long time;
 } query_time_t;
 
-int compare_rand(void *a, void *b) {
-    switch ((rand() % 3)) {
-        case (0):
-            return -1;
-        case (1):
-            return 1;
-        case (2):
-            return 0;
-    }
-}
+// int compare_rand(void *a, void *b) {
+//     switch ((rand() % 3)) {
+//         case (0):
+//             return -1;
+//         case (1):
+//             return 1;
+//         case (2):
+//             return 0;
+//     }
+// }
 
 /* the most cursed function name */
 int sort_timeresult_by_nresults(query_time_t *a, query_time_t *b) {
@@ -414,16 +414,15 @@ int main(int argc, char **argv) {
 
     files = find_files(root_dir);
 
-    /* shuffle the files */
-    list_t *tmp = list_create(compare_rand);
-    list_iter_t *files_iter = list_createiter(files);
-
-    while (list_hasnext(files_iter)) {
-        list_addlast(tmp, list_next(files_iter));
-    }
-    list_destroyiter(files_iter);
-    list_destroy(files);
-    files = tmp;
+    // /* shuffle the files */
+    // list_t *tmp = list_create(compare_rand);
+    // list_iter_t *files_iter = list_createiter(files);
+    // while (list_hasnext(files_iter)) {
+    //     list_addlast(tmp, list_next(files_iter));
+    // }
+    // list_destroyiter(files_iter);
+    // list_destroy(files);
+    // files = tmp;
 
     idx = index_create();
     if (!idx) { 

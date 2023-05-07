@@ -194,6 +194,17 @@ typedef struct query_time {
     unsigned long long time;
 } query_time_t;
 
+int compare_rand(void *a, void *b) {
+    int r = rand() % 3;
+    switch (r) {
+        case (0):
+            return -1;
+        case (1):
+            return 1;
+        case (2):
+            return 0;
+    }
+}
 
 /* the most cursed function name */
 int sort_timeresult_by_nresults(query_time_t *a, query_time_t *b) {
@@ -372,6 +383,8 @@ int main(int argc, char **argv) {
     list_t *files, *words;
     list_iter_t *iter;
     index_t *idx;
+
+    srand(time(NULL));
 
     /* queries are read separated by newlines, regardless of source format 
      * k_ values are given in thousands

@@ -536,7 +536,7 @@ static void destroy_querynodes(qnode_t *leftmost) {
     while (leftmost) {
         qnode_t *tmp = leftmost;
         leftmost = leftmost->right;
-        free(leftmost);
+        free(tmp);
     }
 }
 

@@ -307,9 +307,6 @@ set_t *set_union(set_t *a, set_t *b) {
     if (a->cmpfunc != b->cmpfunc) {
         /* 
          * ERROR_PRINT("union of incompatible sets"); return NULL;
-         *
-         * ... what? 
-         * 
          * This is simply not true, and the header does not mention equal cmpfuncs are required.
          * The elements _could_ still be compatible for comparison through a->cmpfunc.
          * e.g. strcmp and strcasecmp. Shouldn't it be the callers job to decide if elements are comparable?

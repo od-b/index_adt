@@ -14,9 +14,9 @@
 #include "set.h"
 #include "printing.h"
 
-#define WORD_LENGTH ( 40 )
-#define NUM_ITEMS ( 1000 )
-#define NUM_DOCS ( 1000 )
+#define WORD_LENGTH ( 10 )
+#define NUM_ITEMS ( 100 )
+#define NUM_DOCS ( 500 )
 #define PTIME  1
 
 typedef struct document {
@@ -66,13 +66,12 @@ void initialize_document(document_t *doc, unsigned int seed) {
 
 /* Releases the memory used */
 void doc_destroy(document_t *doc) {	
-    // set_iter_t *iter;
-    // iter = set_createiter(doc->terms);
-    // while (set_hasnext(iter)) {
-    //     free(set_next(iter));
-    // }
-    // set_destroyiter(iter);
-    set_destroy_elems(doc->terms, free);
+    set_iter_t *iter;
+    iter = set_createiter(doc->terms);
+    while (set_hasnext(iter)) {
+        free(set_next(iter));
+    }
+    set_destroyiter(iter);
     set_destroy(doc->terms);
 }
 

@@ -16,6 +16,7 @@
 
 #define ERRMSG_MAXLEN  254
 #define ASSERT_PARSE  1
+#define REPLACE_TOKNAMES  1
 
 typedef enum qnode_types qnode_types_t;
 typedef struct qnode qnode_t;
@@ -149,6 +150,11 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
         goto end;
     }
 
+    /* simplify set names */
+    int c = 97;
+    char dummy_str[2];
+    dummy_str[1] = '\0';
+
     /* loop until an error message is set, or there are no more tokens */
     while (!errmsg && list_hasnext(tok_iter)) {
         node = malloc(sizeof(qnode_t));
@@ -224,6 +230,16 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
 
                 if (node->prod) {
                     status = PARSE_READY;
+                }
+
+                if (REPLACE_TOKNAMES) {
+                    if (!node->prod) {
+                        node->token = "ø";
+                    } else {
+                        dummy_str[0] = c;
+                        node->token = strdup(dummy_str);
+                        c = (c == 122) ? (97) : (c+1);
+                    }
                 }
             }
         }
@@ -304,11 +320,6 @@ end:
 
 /* Recursively terminate nodes until only a single node remains */
 static qnode_t *parse_node(qnode_t *node) {
-    /* skip ahead to the next relevant node */
-    while (node->right && (node->type == L_PAREN || node->type == TERM)) {
-        node = node->right;
-    }
-
     switch (node->type) {
         case R_PAREN:
             printf("<<< goto l_paren\n");
@@ -326,7 +337,7 @@ static qnode_t *parse_node(qnode_t *node) {
                     node = node->right;
                 }
                 printf(">>\n");
-                return parse_node(node->right);
+                return parse_node(node);
             } else if (node->left) {
                 printf("<<\n");
                 return parse_node(node->left);
@@ -609,12 +620,9 @@ static void debug_print_query(char *msg, list_t *tokens, qnode_t *leftmost) {
     if (leftmost) {
         qnode_t *n = leftmost;
         printf("[q_nodes]\t`");
-        // int c = 97;
         while (n) {
             switch (n->type) {
                 case TERM:
-                    // printf("%c", (char)c);
-                    // c = (c == 122) ? (97) : (c+1);
                     printf("%s", n->token);
                     break;
                 case OP_OR:

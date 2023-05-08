@@ -1,0 +1,18 @@
+[parser_scan]: scan of 25 tokens completed in 0.07400ms
+[src/assertive_queryparser.c]: [query_validated]
+
+[q_tokens]      `(car OR (antilope)) ANDNOT ((dog OR cat OR zebra) AND (dot OR (math)))`
+[q_nodes]       `(a OR ø) ANDNOT ((ø OR b OR ø) AND (c OR d))`
+
+[OR] empty set:     inherited left set: [aORø]
+<<<
+[OR] empty set:     inherited right set: [øORb]
+[OR] empty set:     inherited left set: [[øORb]ORø]
+<<<
+[OR] new set:       [cORd]
+<<<
+<<<
+[AND] new set:      [[[øORb]ORø]AND[cORd]]
+[ANDNOT] new set:   [[aORø]ANDNOT[[[øORb]ORø]AND[cORd]]]
+
+returning node: [[aORø]ANDNOT[[[øORb]ORø]AND[cORd]]]

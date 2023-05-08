@@ -291,11 +291,6 @@ set_t *parser_get_result(parser_t *parser) {
  * Recursively terminate nodes until only a single node remains 
  */
 static qnode_t *parse_node(qnode_t *node) {
-    /* skip ahead to the next relevant node */
-    while (node->right && (node->type == L_PAREN || node->type == TERM)) {
-        node = node->right;
-    }
-
     switch (node->type) {
         case R_PAREN:
             /* End of query/subquery. Splice parentheses and shift to lparen->right */
@@ -313,7 +308,7 @@ static qnode_t *parse_node(qnode_t *node) {
                 while (node->right && (node->type == L_PAREN || node->type == TERM)) {
                     node = node->right;
                 }
-                return parse_node(node->right);
+                return parse_node(node);
             }
             if (node->left) {
                 return parse_node(node->left);

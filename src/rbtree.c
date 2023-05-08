@@ -24,7 +24,7 @@ typedef struct treenode {
     struct treenode *left;
     struct treenode *right;
     void *elem;
-    int8_t black;
+    int_fast8_t black;
 } treenode_t;
 
 typedef struct tree {

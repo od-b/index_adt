@@ -1,4 +1,10 @@
 /*
+ * Alternate approach => store term frequency in words, as opposed to within 
+ * each documents struct. The document struct is then unnescessary, and removed entirely.
+ * format_query_results being a bottleneck, this approach tests whether it can be made more efficient
+*/
+
+/*
  * Index ADT implementation relying mainly on the use of tree-based set(s).
  * In an attempt to improve readability, the code within this file is split into sections.
  * Sections 1 & 2 consist solely of functions.
@@ -33,9 +39,8 @@
 typedef struct iword {
     char   *term;
     set_t  *paths;  // set of paths where ->word can be found
-    map_t  *tf;     // path -> freq
+    map_t  *tf;     // path => freq
 } iword_t;
-
 
 /* Type of index */
 struct index {
@@ -121,13 +126,17 @@ index_t *index_create() {
 void index_destroy(index_t *index) {
     return;
     /* test implementation, rework of destroy TODO */
-    // printf("destroying index ... \n");
-    // int n_freed_words = 0;
-    // int n_freed_docs = 0;
-    // set_t *all_docs = set_create(compare_pointers);
-    // set_iter_t *iword_iter = set_createiter(index->indexed_words);
-    // printf("index_destroy: Freed %d documents, %d unique words\n",
-    //     n_freed_docs, n_freed_words);
+    printf("destroying index ... \n");
+    int n_freed_words = 0;
+    int n_freed_docs = 0;
+
+    set_t *all_docs = set_create(compare_pointers);
+    set_iter_t *iword_iter = set_createiter(index->indexed_words);
+
+
+
+    printf("index_destroy: Freed %d documents, %d unique words\n",
+        n_freed_docs, n_freed_words);
 }
 
 void index_addpath(index_t *index, char *path, list_t *tokens) {
@@ -137,6 +146,7 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
      * This seems like a function that absolutely should have one ...
      */
     if (list_size(tokens) == 0) {
+        free(path);
         return;
     }
 
@@ -166,7 +176,6 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
             if (!iword->paths || !iword->tf || !index->iword_buf) {
                 return;
             }
-            index->iword_buf->paths = NULL;
         } else {
             free(tok);
         }
@@ -180,7 +189,6 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
         } else {
             /* add path to the indexed words set. */
             set_add(iword->paths, path);
-            printf("added %s\n", path);
             /* allocate a tf pointer */
             unsigned short *tf = malloc(sizeof(unsigned short));
             if (tf) {
@@ -200,96 +208,52 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
  *                                                                            *
  ******************************************************************************/
 
-int compare_qresults_by_path(query_result_t *a, query_result_t *b) {
-    return strcmp(a->path, b->path);
-}
-
 /*
  * Returns a sorted list of query results, created from each path in the given set.
  */
 static list_t *format_query_results(index_t *index, set_t *paths) {
-    list_t *query_results = list_create((cmpfunc_t)compare_query_results_by_score);
-    map_t *result_map = map_create((cmpfunc_t)strcmp, hash_string);
-    set_iter_t *qword_iter = set_createiter(index->query_words);
+    list_t *results = list_create((cmpfunc_t)compare_query_results_by_score);
+    set_iter_t *path_iter = set_createiter(paths);
 
-    if (!query_results || !qword_iter || !result_map) {
-        return NULL;
-    }
-
-    double n_total_docs = (double)index->n_docs;
-    double idf, tf_idf;
-    unsigned short *tf;
+    /* calculate log docs preemptively */
+    double log_ndocs = log((double)index->n_docs);
+    double tf, idf;
     char *path;
-    query_result_t *q_result;
     iword_t *iword;
-    set_t *uni_paths;
-    set_iter_t *uni_iter;
 
-    /* iterate over indexed query words */
-    while (set_hasnext(qword_iter)) {
-        iword = set_next(qword_iter);
+    /* iterate over all paths */
+    while ((path = set_next(path_iter)) != NULL) {
+        query_result_t *q_result = malloc(sizeof(query_result_t));
+        q_result->path = path;
+        q_result->score = 0.00f;
 
-        /* query word paths U result paths */
-        uni_paths = set_union(iword->paths, paths);
-        if (!uni_paths) {
-            return NULL;
+        /* create iterator for words terminated by the parser */
+        set_iter_t *qword_iter = set_createiter(index->query_words);
+
+        while ((iword = set_next(qword_iter)) != NULL) {
+            /* if path is contained within the word struct, get tf and calc tfidf */
+            if (set_contains(iword->paths, path)) {
+                tf = (double)(*(unsigned short *)map_get(iword->tf, path));
+                idf = log_ndocs - log((double)set_size(iword->paths));
+                q_result->score += tf * idf;
+            }
         }
 
-        if (set_size(uni_paths)) {
-            uni_iter = set_createiter(uni_paths);
-            if (!uni_iter) {
-                return NULL;
-            }
-
-            /* for all paths in union, create result and/or update tf-idf */
-            while (set_hasnext(uni_iter)) {
-                path = set_next(uni_iter);
-
-                /* calculated tf/idf */
-                tf = map_get(iword->tf, path);
-
-                idf = log(n_total_docs / (double)set_size(iword->paths));
-                tf_idf = ((double)*tf) * idf;
-
-                /* check if a result struct is already created for path */
-                q_result = map_get(result_map, path);
-
-                if (!q_result) {
-                    /* new result, create it, set path etc */
-                    q_result = malloc(sizeof(query_result_t));
-                    if (!q_result) {
-                        return NULL;
-                    }
-                    q_result->path = path;
-                    q_result->score = tf_idf;
-
-                    /* put in map of results */
-                    map_put(result_map, path, q_result);
-                    if (!list_addlast(query_results, q_result)) {
-                        return NULL;
-                    }
-                } else {
-                    /* update existing result */
-                    q_result->score += tf_idf;
-                }
-            }
-            set_destroyiter(uni_iter);
-        }
-        set_destroy(uni_paths);
+        set_destroyiter(qword_iter);
+        list_addlast(results, q_result);
     }
-    map_destroy(result_map, NULL, NULL);
+    set_destroyiter(path_iter);
 
-    /* sort the results by score */
-    list_sort(query_results);
-
-    return query_results;
+    return results;
 }
 
 list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
-    if (!list_size(tokens)) {
-        *errmsg = "empty query";
-        return NULL;
-    }
+    /* guess the following won't happen after checking out indexer */
+    // if (!list_size(tokens)) {
+    //     *errmsg = "empty query";
+    //     return NULL;
+    //
+    // }
 
     list_t *ret_list = NULL;
     set_t *results = NULL;
@@ -325,6 +289,8 @@ list_t *index_query(index_t *index, list_t *tokens, char **errmsg) {
             } else {
                 /* nonempty set, format results */
                 ret_list = format_query_results(index, results);
+                /* sort the results by score */
+                list_sort(ret_list);
             }
             break;
     }

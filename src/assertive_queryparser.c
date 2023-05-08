@@ -39,7 +39,7 @@ static void debug_print_cattokens(qnode_t *oper);
 
 struct parser {
     void *parent;
-    search_func_t search_func;
+    term_func_t term_func;
     qnode_t *leftmost;
     char *errmsg_buf;
 };
@@ -66,7 +66,7 @@ struct qnode {
 };
 
 
-parser_t *parser_create(void *parent, search_func_t search_func) {
+parser_t *parser_create(void *parent, term_func_t term_func) {
     parser_t *parser = malloc(sizeof(parser_t));
     if (!parser) {
         return NULL;
@@ -81,12 +81,11 @@ parser_t *parser_create(void *parent, search_func_t search_func) {
     }
 
     parser->parent = parent;
-    parser->search_func = search_func;
+    parser->term_func = term_func;
     parser->leftmost = NULL;
 
     return parser;
 }
-
 
 void parser_destroy(parser_t *parser) {
     free(parser->errmsg_buf);
@@ -122,31 +121,15 @@ set_t *parser_get_result(parser_t *parser) {
 }
 
 parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
-    /* this function is fairly nested but has a straightforward goal:
-     * Validate the syntax of tokens while 'converting' them into query nodes.
-     * Terminate <words>, to detect if a search may yield results without further parsing.
-     *
-     * EXPERIMENT:
-     * For <word> nodes, terminate the nodes - while keeping track of 
-     * words that were already searched for, so e.g. all <words> are duplicates,
-     * there will only be one search. 
-     * 
-     * This is not ideal for small queries, but given a very large query, 
-     * there may be numerous duplicates - could the approach be useful as a whole?
-     * What's the likelyhood of queries containing the same token more than once?
-     * (hard to say without unbiased user data, which is unattainable)
-     * 
-     * TEST: 
-     *  * Does it improve search efficiency for queries with duplicates?
-     *  * Given no duplicates, what's the time cost of checking the map?
-     *  * 
-     * HYPOTHESIS:
-     *  * Will be considerably faster if as much as one duplicate is found.
-     *  * how much faster will scale with index size, and n. query tokens
+    /* This function is rather nested, but has a simple purpose:
+     * 1. Validate the syntax of query tokens
+     * 2. 'converting' them into query nodes
+     * 3. Produce terminable tokens, determining if a scan is needed
      */
-    /* Declare & initialize all function-scope pointers */
+
     unsigned long long t_start = gettime();
 
+    /* Declare & initialize all function-scope pointers */
     qnode_t *leftmost, *prev, *prev_nonpar, *node;
     leftmost = prev = prev_nonpar = node = NULL;
 
@@ -232,7 +215,7 @@ parser_status_t parser_scan(parser_t *parser, list_t *tokens) {
                     node->prod = map_get(searched_words, token);
                 } else {
                     /* search index for word, add result to node & map of searched words */
-                    node->prod = parser->search_func(parser->parent, token);
+                    node->prod = parser->term_func(parser->parent, token);
                     map_put(searched_words, token, node->prod);
                 }
                 /* mark this node to not have its set destroyed, as that would break the index :^) */
@@ -319,11 +302,13 @@ end:
     return status;
 }
 
-/*
- * Given a query node, decides the next action until the query is reduced
- * to a single terminated node, which will be the point of return.
- */
+/* Recursively terminate nodes until only a single node remains */
 static qnode_t *parse_node(qnode_t *node) {
+    /* skip ahead to the next relevant node */
+    while (node->right && (node->type == L_PAREN || node->type == TERM)) {
+        node = node->right;
+    }
+
     switch (node->type) {
         case R_PAREN:
             printf("<<< goto l_paren\n");
@@ -337,19 +322,25 @@ static qnode_t *parse_node(qnode_t *node) {
             return term_andnot(node);
         default: {
             if (node->right) {
+                while (node->right && (node->type == L_PAREN || node->type == TERM)) {
+                    node = node->right;
+                }
                 printf(">>\n");
                 return parse_node(node->right);
             } else if (node->left) {
                 printf("<<\n");
                 return parse_node(node->left);
-            } else {
-                /* Single node remaining, containing the final product. Return it. */
-                printf("^^ returning node: %s\n", node->token);
-                return node;
             }
+            printf("^^ returning node: %s\n", node->token);
+            return node;
         }
     }
 }
+
+/*
+// go left, or return the only remaining node
+return (node->left) ? (parse_node(node->left)) : (node);
+*/
 
 static qnode_t *term_andnot(qnode_t *oper) {
     assert(oper->type == OP_ANDNOT);
@@ -545,10 +536,10 @@ static void destroy_querynodes(qnode_t *leftmost) {
     while (leftmost) {
         qnode_t *tmp = leftmost;
         leftmost = leftmost->right;
-        destroy_product(tmp);
-        free(tmp);
+        free(leftmost);
     }
 }
+
 
 /*
  * Destroys the product of a node unless it is inherited from an indexed word.

@@ -43,19 +43,19 @@ struct index {
 
 /* Type of indexed word */
 struct iword {
-    char   *word;
+    char   *term;
     set_t  *in_docs;  // set of paths where ->word can be found
 };
 
 /* Type of indexed document */
 struct idocument {
     char  *path;
-    map_t *terms;   // {'char *word' => 'int *freq'}
+    map_t *terms;   // {char *word => int *freq}
 };
 
 /* strcmp wrapper */
 int strcmp_iwords(iword_t *a, iword_t *b) {
-    return strcmp(a->word, b->word);
+    return strcmp(a->term, b->term);
 }
 
 /* Compares two iword_t based on the size of their path sets */
@@ -74,8 +74,8 @@ int compare_query_results_by_score(query_result_t *a, query_result_t *b) {
 }
 
 /* used by the parser to search within the index. */
-set_t *get_iword_docs(index_t *index, char *word) {
-    index->iword_buf->word = word;
+set_t *get_iword_docs(index_t *index, char *term) {
+    index->iword_buf->term = term;
     iword_t *result = tree_search(index->indexed_words, index->iword_buf);
 
     if (result) {
@@ -116,14 +116,14 @@ index_t *index_create() {
         return NULL;
     }
 
-    index->parser = parser_create((void *)index, (search_func_t)get_iword_docs);
+    index->parser = parser_create((void *)index, (term_func_t)get_iword_docs);
     if (!index->parser) {
         tree_destroy(index->indexed_words);
         free(index->iword_buf);
         free(index);
         return NULL;
     }
-    index->iword_buf->word = NULL;
+    index->iword_buf->term = NULL;
     index->iword_buf->in_docs = NULL;
 
     index->n_docs = 0;
@@ -166,7 +166,7 @@ void index_destroy(index_t *index) {
 
         /* free the iword & its members */
         set_destroy(curr->in_docs);
-        free(curr->word);
+        free(curr->term);
         free(curr);
         n_freed_words++;
     }
@@ -230,12 +230,12 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
         char *tok = list_next(tok_iter);
 
         /* try to add the word to the index, using word_buf to allow comparison */
-        index->iword_buf->word = tok;
+        index->iword_buf->term = tok;
         iword_t *iword = tree_tryadd(index->indexed_words, index->iword_buf);
 
         if (iword == index->iword_buf) {
             /* first index entry for this word. initialize it as an indexed word. */
-            iword->word = tok;
+            iword->term = tok;
             iword->in_docs = set_create((cmpfunc_t)compare_idocs_by_path);
             if (!iword->in_docs) {
                 // ERROR_PRINT("malloc failed\n");
@@ -255,7 +255,7 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
         }
 
         /* check if word already has occured within the document */
-        int *freq = map_get(doc->terms, iword->word);
+        int *freq = map_get(doc->terms, iword->term);
 
         if (!freq) {
             /* create a value entry for { word : freq } in the document map */
@@ -264,7 +264,7 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
                 return;
             }
             *freq = 1;
-            map_put(doc->terms, iword->word, freq);
+            map_put(doc->terms, iword->term, freq);
         } else {
             /* increment the frequency of the word */
             *freq += 1;
@@ -275,8 +275,6 @@ void index_addpath(index_t *index, char *path, list_t *tokens) {
     }
 
     list_destroyiter(tok_iter);
-
-    // printf("\nindex: docs = %d, unique words = %d\n", index->n_docs, set_size(index->iwords));
 }
 
 
@@ -319,7 +317,7 @@ static list_t *format_query_results(index_t *index, set_t *docs) {
          */
         while (set_hasnext(qword_iter)) {
             iword_t *curr = set_next(qword_iter);
-            int *tf = map_get(doc->terms, curr->word);
+            int *tf = map_get(doc->terms, curr->term);
 
             if (tf) {
                 /* document has the term. Calculate tf-idf and add to score */

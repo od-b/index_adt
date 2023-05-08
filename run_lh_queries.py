@@ -17,14 +17,13 @@ DISPLAY_WINDOW = True   # keep chromedriver hidden or not
 HOST = "http://localhost:8080/"
 
 SLEEP_INTERVAL = 0.1    # interval between queries
-N_QUERIES = 100     # queries to post before quitting app
-N_TERMS = 1         # how many chained ´(<word> <op> <word>) <op> ... `
+N_QUERIES = 10     # queries to post before quitting app
+N_TERMS = 2         # how many chained ´(<word> <op> <word>) <op> ... `
 SIMPLE_TERM = True  # single word queries
-TERMINATE_AFTER = True
 
 SYNTAX_STRESSTEST = False   # try to make the program segfault through faulty syntax
 STRESS_A = int(2)   # min amount of invalid stuff per stressquery
-STRESS_B = int(4)   # max amount of invalid stuff per stressquery
+STRESS_B = int(5)   # max amount of invalid stuff per stressquery
 #######################################################
 
 
@@ -111,11 +110,4 @@ if __name__ == '__main__':
         time.sleep(SLEEP_INTERVAL)
 
     driver.quit()	# terminate the chromedriver
-
-    print("\nDone")
-    if (TERMINATE_AFTER):
-        print("terminating indexer")
-        for proc in psutil.process_iter():
-            if proc.name() == "indexer":
-                proc.terminate()
 

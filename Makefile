@@ -5,10 +5,11 @@
 LIST_SRC=linkedlist.c
 MAP_SRC=hashmap.c
 SET_SRC=aatreeset.c
-INDEX_SRC=index_refactor.c
+
+INDEX_SRC=index_aa_var.c
 # INDEX_SRC=index_rb.c rbtree.c
-# PARSER_SRC=queryparser.c pile.c
-PARSER_SRC=assertive_queryparser.c pile.c
+PARSER_SRC=queryparser.c pile.c
+# PARSER_SRC=assertive_queryparser.c pile.c
 
 # Directories
 INCLUDE_DIR=include
@@ -33,11 +34,11 @@ TIME_SRC := $(patsubst %.c, $(SRC_DIR)/%.c, $(TIME_SRC))
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
 # FLAGS = -lm -g -Wall -DDEBUG -DERROR_FATAL -DLINE_PRINT
-# FLAGS = -lm -O2 -Wno-unused-result
-FLAGS = -lm -Og -g -pg -Wno-unused-result -Wall
+# FLAGS = -lm -Og -g -pg -Wno-unused-result
+FLAGS = -lm -O2 -Wall
 .PHONY=all
 
-all: $(TIME_INDEX)
+all: $(INDEXER)
 
 $(INDEXER): $(INDEXER_SRC) $(HEADERS) Makefile
 	gcc -o $@ -D_GNU_SOURCE -D_REENTRANT $(INDEXER_SRC) -I$(INCLUDE_DIR) -lpthread $(FLAGS)

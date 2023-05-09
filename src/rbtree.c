@@ -6,11 +6,13 @@
 
 
 /*
- * ----- README: REFERENCES & INFO -----
+ * ------------ REFERENCE --------------
  * 
- * A vast majority of the code within this file is taken from an earlier assignment.
+ * 
+ * A majority of the code within this file is taken from an earlier assignment.
  * 
  * All code and implementations contained within this file is my own work.
+ * 
  * 
  * -------------------------------------
  *
@@ -347,3 +349,16 @@ void tree_destroyiter(tree_iter_t *iter) {
     }
     free(iter);
 }
+
+
+/*
+ * ------------ REFERENCE --------------
+ * 
+ * 
+ * A majority of the code within this file is taken from an earlier assignment.
+ * 
+ * All code and implementations contained within this file is my own work.
+ * 
+ * 
+ * -------------------------------------
+*/

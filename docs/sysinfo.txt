@@ -1,6 +1,0 @@
-System Overview:
-  System Version: macOS 13.2.1 (22D68)
-  Kernel Version: Darwin 22.3.0
-  Chip: Apple M1, RELEASE_ARM64_T8103 arm64
-  Total Number of Cores: 8 (4 performance and 4 efficiency)
-  Memory: 8 GB

@@ -381,7 +381,7 @@ int main(int argc, char **argv) {
     if (argc != 5) {
         /* queries are read separated by newlines, regardless of source format 
         * k_ values are given in thousands */
-        printf("usage: indexer <dir> <k_files> <query_src> <k_queries>\n");
+        printf("usage: time_index <dir> <k_files> <query_src> <k_queries>\n");
         return 1;
     }
 

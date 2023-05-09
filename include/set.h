@@ -10,39 +10,22 @@
 struct set;
 typedef struct set set_t;
 
-/* --- NOTE ---
- * 
- * The first three of the following function declarations, namely set_get, set_tryadd and set_destroy_elems,
- * were not originally defined within the ADT and have been added to this header.
- * 
- * No modifications have been made to existing declarations the provided precode.
-*/
-
 /*
  * Search within the given set for an elem equal to the provided one.
  * If an equal elem exists in the set, returns it. 
  * Otherwise, returns NULL.
  */
 void *set_get(set_t *set, void *elem);
-/* note: strictly nescessary to allow sets of structs compared by a struct member. */
 
 /*
  * Try to add a given elem to the given set. 
  * 
  * Returns:
  * a) The `duplicate` elem from the set, if it exists.
- * b) The provided elem, if added sucessfully.
+ * b) The provided elem, if added to the set.
  * c) NULL, on error (e.g. out of memory).
- * 
- * To check whether the elem was added, compare the return 
- * value or address to the one of the given elem.
  */
 void *set_tryadd(set_t *set, void *elem);
-/* note: 
- * not strictly nescessary, as this information can be acquired by performing set_get followed by add,
- * but can more than double the performance of that alternative - in many cases. ()
- * performance by turning many operations into a single one. 
-*/
 
 /*
  * Creates a new set. The given cmpfunc will be used
@@ -76,8 +59,6 @@ int set_contains(set_t *set, void *elem);
  * Returns the union of the two given sets; the returned
  * set contains all elements that are contained in either
  * a or b.
- * a->cmpfunc is used for comparison, and will be 
- * inhereted by the returned set.
  */
 set_t *set_union(set_t *a, set_t *b);
 
@@ -85,8 +66,6 @@ set_t *set_union(set_t *a, set_t *b);
  * Returns the intersection of the two given sets; the
  * returned set contains all elements that are contained
  * in both a and b.
- * a->cmpfunc is used for comparison, and will be 
- * inhereted by the returned set.
  */
 set_t *set_intersection(set_t *a, set_t *b);
 
@@ -94,8 +73,6 @@ set_t *set_intersection(set_t *a, set_t *b);
  * Returns the set difference of the two given sets; the
  * returned set contains all elements that are contained
  * in a and not in b.
- * a->cmpfunc is used for comparison, and will be 
- * inhereted by the returned set.
  */
 set_t *set_difference(set_t *a, set_t *b);
 

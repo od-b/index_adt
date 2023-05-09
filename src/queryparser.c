@@ -269,7 +269,6 @@ set_t *parser_get_result(parser_t *parser) {
     if (!parser->leftmost->prod) {
         /* query completed with no results. return an empty set. */
         free(parser->leftmost);
-        parser->leftmost = NULL;
         return set_create((cmpfunc_t)strcmp);
     }
 
@@ -277,7 +276,6 @@ set_t *parser_get_result(parser_t *parser) {
     set_t *result = set_copy(parser->leftmost->prod);
     destroy_product(parser->leftmost);
     free(parser->leftmost);
-    parser->leftmost = NULL;
 
     return result;
 }
@@ -288,7 +286,9 @@ set_t *parser_get_result(parser_t *parser) {
  ******************************************************************************/
 
 /* 
- * Recursively terminate nodes until only a single node remains 
+ * Recursively terminate nodes until only a single node remains
+ * note that NULL checks are not performed after set operations, as such an event
+ * would not fault the program on its own - rather return no results.
  */
 static qnode_t *parse_node(qnode_t *node) {
     switch (node->type) {
@@ -407,6 +407,7 @@ static qnode_t *term_or(qnode_t *oper) {
 
     /* Check if a set operation is nescessary. */
     if (!a->prod && !c->prod) {
+        /* A U Ø ==> Ø, and vice versa */
         oper->prod = NULL;
     } else if (!c->prod || (a->prod == c->prod)) {
         /* Not C --> inherit A. 

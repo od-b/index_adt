@@ -1,6 +1,19 @@
 #ifndef TREE_H
 #define TREE_H
 
+/*
+ * ------------ REFERENCE --------------
+ * 
+ * 
+ * A majority of the code within this file is taken from an earlier assignment.
+ * 
+ * All code and implementations contained within this file is my own work.
+ * 
+ * 
+ * -------------------------------------
+*/
+
+
 #include "common.h"
 
 typedef struct tree tree_t;

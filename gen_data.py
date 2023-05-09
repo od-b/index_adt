@@ -1,18 +1,17 @@
 ''' simple program to create html files containing random-ish english words 
 
-    to simulate a variance in number of duplicate words, random numbers are inserted.
-    the range of numbers will gradually increase by x * No. generated files.
-    e.g. the first file will only contain 0 as numbers, the second 0 | 1 | 2, asf.
-    same number range for all N_FILES, see the 'MULTI' constant.
+    to simulate a variance in number of duplicate words, random integers are inserted.
+    the range of inserted integers will gradually increase by x * No. generated files.
+    -> the first file will only contain 0 as numbers, the second 0 | 1 | 2, asf.
 '''
 
 ##################### SETTINGS ######################
 OUTDIR = "./generated/"
 FNAMES = "gcide_" #+{file no}.html
-N_FILES = int(20)
-N_WORDS = int(64)       # words&integers per file, 50/50 split
+N_FILES = int(800000)
+N_WORDS = int(128)       # words&integers per file, 50/50 split
 LINE_WIDTH = int(8)     # words per line
-MAX_FILES = 800000      # defined max upper bound
+MAX_FILES = 1000000      # defined max upper bound
 #######################################################
 
 from random import randint

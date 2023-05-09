@@ -7,8 +7,8 @@ MAP_SRC=hashmap.c
 SET_SRC=aatreeset.c
 INDEX_SRC=index_refactor.c
 # INDEX_SRC=index_rb.c rbtree.c
-PARSER_SRC=queryparser.c pile.c
-# PARSER_SRC=assertive_queryparser.c pile.c
+# PARSER_SRC=queryparser.c pile.c
+PARSER_SRC=assertive_queryparser.c pile.c
 
 # Directories
 INCLUDE_DIR=include

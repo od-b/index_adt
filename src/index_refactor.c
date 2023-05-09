@@ -4,12 +4,6 @@
  * format_query_results being a bottleneck, this approach tests whether it can be made more efficient
 */
 
-/*
- * Index ADT implementation relying mainly on the use of tree-based set(s).
- * In an attempt to improve readability, the code within this file is split into sections.
- * Sections 1 & 2 consist solely of functions.
- */
-
 #include "index.h"
 #include "common.h"
 #include "queryparser.h"
@@ -125,18 +119,7 @@ index_t *index_create() {
 
 void index_destroy(index_t *index) {
     return;
-    /* test implementation, rework of destroy TODO */
-    printf("destroying index ... \n");
-    int n_freed_words = 0;
-    int n_freed_docs = 0;
-
-    set_t *all_docs = set_create(compare_pointers);
-    set_iter_t *iword_iter = set_createiter(index->indexed_words);
-
-
-
-    printf("index_destroy: Freed %d documents, %d unique words\n",
-        n_freed_docs, n_freed_words);
+    /* TODO / downprioritized, as it is mostly irrelevant for time testing purposes. */
 }
 
 void index_addpath(index_t *index, char *path, list_t *tokens) {
